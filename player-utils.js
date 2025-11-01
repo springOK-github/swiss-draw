@@ -70,7 +70,8 @@ function dropoutPlayer() {
 
   const confirmResponse = ui.alert(
     'ドロップアウトの確認',
-    `プレイヤー ${playerId} をドロップアウトさせ、参加状況を「終了」に変更します。\n` +
+    `プレイヤー ${playerId} \n` +
+    `をドロップアウトさせ、参加状況を「終了」に変更します。\n` +
     '進行中の対戦がある場合は無効となります。\n\n' +
     'よろしいですか？',
     ui.ButtonSet.YES_NO

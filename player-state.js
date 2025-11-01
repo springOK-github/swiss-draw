@@ -52,11 +52,11 @@ function handleMatchStateChange(options) {
     }
 
     if (!targetFound) {
-      return { success: false, message: `プレイヤーID ${targetPlayerId} が見つかりません。` };
+      return { success: false, message: `プレイヤー ${targetPlayerId} が見つかりません。` };
     }
 
-    if (targetDropped && newStatus !== PLAYER_STATUS.DROPPED) {
-      return { success: false, message: `このプレイヤーはすでにドロップアウトしています。` };
+    if (targetDropped) {
+      return { success: false, message: `プレイヤー ${targetPlayerId} はすでにドロップアウトしています。` };
     }
 
     // 2. プレイヤーの現在の状態を取得
