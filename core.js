@@ -19,9 +19,9 @@ function matchPlayers() {
 
   try {
     lock = acquireLock('マッチング実行');
-    validateHeaders(inProgressSheet, SHEET_IN_PROGRESS);
+    getSheetStructure(inProgressSheet, SHEET_IN_PROGRESS);
     const playerSheet = ss.getSheetByName(SHEET_PLAYERS);
-    const { indices: playerIndices, data: playerData } = validateHeaders(playerSheet, SHEET_PLAYERS);
+    const { indices: playerIndices, data: playerData } = getSheetStructure(playerSheet, SHEET_PLAYERS);
 
     const waitingPlayers = getWaitingPlayers();
     if (waitingPlayers.length < 2) {
@@ -131,7 +131,7 @@ function promptAndRecordResult() {
   // この時点でロックは取得しない
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const inProgressSheet = ss.getSheetByName(SHEET_IN_PROGRESS);
-  const { indices, data } = validateHeaders(inProgressSheet, SHEET_IN_PROGRESS);
+  const { indices, data } = getSheetStructure(inProgressSheet, SHEET_IN_PROGRESS);
   let loserId = null;
 
   // 対戦相手の確認（ロック不要）
@@ -189,7 +189,7 @@ function recordResult(winnerId) {
   }
 
   // 共通処理を呼び出し
-  const result = handleMatchStateChange({
+  const result = updatePlayerState({
     targetPlayerId: winnerId,
     newStatus: PLAYER_STATUS.WAITING,
     opponentNewStatus: PLAYER_STATUS.WAITING,

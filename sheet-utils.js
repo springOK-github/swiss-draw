@@ -11,7 +11,7 @@
  * @returns {{headers: string[], indices: Object.<string, number>, data: any[][]}} ヘッダー情報と全データ
  * @throws {Error} 必須ヘッダーが不足している場合
  */
-function validateHeaders(sheet, sheetName) {
+function getSheetStructure(sheet, sheetName) {
   if (!sheet) {
     throw new Error(`シート「${sheetName}」が見つかりません。`);
   }
@@ -55,7 +55,7 @@ function cleanUpInProgressSheet() {
   const inProgressSheet = ss.getSheetByName(SHEET_IN_PROGRESS);
 
   try {
-    validateHeaders(inProgressSheet, SHEET_IN_PROGRESS);
+    getSheetStructure(inProgressSheet, SHEET_IN_PROGRESS);
 
     const lastRow = inProgressSheet.getLastRow();
     if (lastRow <= 1) {

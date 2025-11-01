@@ -14,7 +14,7 @@
  * @param {boolean} options.isTargetWinner - 対象プレイヤーが勝者かどうか（結果記録時のみ使用）
  * @returns {Object} 処理結果 { success: boolean, message: string, opponentId?: string }
  */
-function handleMatchStateChange(options) {
+function updatePlayerState(options) {
   const {
     targetPlayerId,
     newStatus,
@@ -34,7 +34,7 @@ function handleMatchStateChange(options) {
 
     // 1. プレイヤーの現在の状態を確認
     const playerSheet = ss.getSheetByName(SHEET_PLAYERS);
-    const { indices: playerIndices, data: playerData } = validateHeaders(playerSheet, SHEET_PLAYERS);
+    const { indices: playerIndices, data: playerData } = getSheetStructure(playerSheet, SHEET_PLAYERS);
     
     let targetFound = false;
     let targetDropped = false;
@@ -75,7 +75,7 @@ function handleMatchStateChange(options) {
 
     if (currentStatus === PLAYER_STATUS.IN_PROGRESS) {
       const inProgressSheet = ss.getSheetByName(SHEET_IN_PROGRESS);
-      const { indices: matchIndices, data: matchData } = validateHeaders(inProgressSheet, SHEET_IN_PROGRESS);
+      const { indices: matchIndices, data: matchData } = getSheetStructure(inProgressSheet, SHEET_IN_PROGRESS);
 
       for (let i = 1; i < matchData.length; i++) {
         const row = matchData[i];
@@ -117,7 +117,7 @@ function handleMatchStateChange(options) {
       const currentTime = new Date();
       const formattedTime = Utilities.formatDate(currentTime, 'Asia/Tokyo', 'yyyy/MM/dd HH:mm:ss');
       const historySheet = ss.getSheetByName(SHEET_HISTORY);
-      validateHeaders(historySheet, SHEET_HISTORY);
+      getSheetStructure(historySheet, SHEET_HISTORY);
       const newId = "T" + Utilities.formatString("%04d", historySheet.getLastRow());
 
       const winner = isTargetWinner ? targetPlayerId : opponentId;
@@ -131,8 +131,8 @@ function handleMatchStateChange(options) {
         newId
       ]);
 
-      updatePlayerStats(winner, true, formattedTime);
-      updatePlayerStats(loser, false, formattedTime);
+      updatePlayerMatchStats(winner, true, formattedTime);
+      updatePlayerMatchStats(loser, false, formattedTime);
     }
 
     // 5. 対戦中リストから削除（対戦中の場合のみ）

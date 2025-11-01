@@ -18,7 +18,7 @@ function registerPlayer() {
   const ui = SpreadsheetApp.getUi();
 
   try {
-    validateHeaders(playerSheet, SHEET_PLAYERS);
+    getSheetStructure(playerSheet, SHEET_PLAYERS);
 
     const lastRow = playerSheet.getLastRow();
     const newIdNumber = lastRow;
@@ -84,7 +84,7 @@ function dropoutPlayer() {
   }
 
   // 共通処理を呼び出し
-  const result = handleMatchStateChange({
+  const result = updatePlayerState({
     targetPlayerId: playerId,
     newStatus: PLAYER_STATUS.DROPPED,
     opponentNewStatus: PLAYER_STATUS.WAITING,
@@ -117,7 +117,7 @@ function getWaitingPlayers() {
   const playerSheet = ss.getSheetByName(SHEET_PLAYERS);
 
   try {
-    const { indices, data } = validateHeaders(playerSheet, SHEET_PLAYERS);
+    const { indices, data } = getSheetStructure(playerSheet, SHEET_PLAYERS);
     if (data.length <= 1) return [];
 
     const waiting = data.slice(1).filter(row => 
@@ -152,7 +152,7 @@ function getPastOpponents(playerId) {
   const historySheet = ss.getSheetByName(SHEET_HISTORY);
 
   try {
-    const { indices, data } = validateHeaders(historySheet, SHEET_HISTORY);
+    const { indices, data } = getSheetStructure(historySheet, SHEET_HISTORY);
     if (data.length <= 1) return [];
 
     const p1Col = indices["プレイヤー1 ID"];
@@ -177,12 +177,12 @@ function getPastOpponents(playerId) {
 /**
  * プレイヤーの統計情報 (勝数, 敗数, 消化試合数) と最終対戦日時を更新します。
  */
-function updatePlayerStats(playerId, isWinner, timestamp) {
+function updatePlayerMatchStats(playerId, isWinner, timestamp) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const playerSheet = ss.getSheetByName(SHEET_PLAYERS);
 
   try {
-    const { indices, data } = validateHeaders(playerSheet, SHEET_PLAYERS);
+    const { indices, data } = getSheetStructure(playerSheet, SHEET_PLAYERS);
     if (data.length <= 1) return;
 
     for (let i = 1; i < data.length; i++) {
