@@ -244,7 +244,52 @@ function promptAndRecordResult() {
   // 自動でプレフィックスとゼロパディングを付与
   const formattedWinnerId = PLAYER_ID_PREFIX + Utilities.formatString(`%0${ID_DIGITS}d`, parseInt(rawId, 10));
 
-  recordResult(formattedWinnerId);
+  // 対戦中シートから敗者IDを特定して確認
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const inProgressSheet = ss.getSheetByName(SHEET_IN_PROGRESS);
+  
+  try {
+    const { indices, data } = validateHeaders(inProgressSheet, SHEET_IN_PROGRESS);
+    let loserId = null;
+
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      const p1 = row[indices["プレイヤー1 ID"]];
+      const p2 = row[indices["プレイヤー2 ID"]];
+
+      if (p1 === formattedWinnerId) {
+        loserId = p2;
+        break;
+      } else if (p2 === formattedWinnerId) {
+        loserId = p1;
+        break;
+      }
+    }
+
+    if (loserId === null) {
+      ui.alert(`エラー: 勝者ID (${formattedWinnerId}) は「対戦中」シートに見つかりませんでした。\n入力IDが間違っているか、対戦が記録されていません。`);
+      return;
+    }
+
+    // 勝者と敗者の確認
+    const confirmResponse = ui.alert(
+      '対戦結果の確認',
+      `以下の内容で記録してよろしいですか？\n\n` +
+      `勝者: ${formattedWinnerId}\n` +
+      `敗者: ${loserId}`,
+      ui.ButtonSet.YES_NO
+    );
+
+    if (confirmResponse !== ui.Button.YES) {
+      ui.alert('処理をキャンセルしました。');
+      return;
+    }
+
+    recordResult(formattedWinnerId);
+  } catch (e) {
+    ui.alert("エラーが発生しました: " + e.toString());
+    Logger.log("promptAndRecordResult エラー: " + e.toString());
+  }
 }
 
 
