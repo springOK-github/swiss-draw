@@ -73,6 +73,7 @@ function onOpen() {
     .addItem('シートの初期設定', 'setupSheets')
     .addSeparator()
     .addItem('新しいプレイヤーの登録', 'registerPlayer')
+    .addItem('プレイヤーのドロップアウト', 'handleDropout')
     .addSeparator()
     .addItem('対戦結果の入力', 'promptAndRecordResult')
     .addToUi();
@@ -446,7 +447,7 @@ function getWaitingPlayers() {
     if (data.length <= 1) return [];
 
     const waiting = data.slice(1).filter(row => 
-      row[indices["参加状況"]] === "待機"
+      row[indices["参加状況"]] === "待機" && row[indices["参加状況"]] !== "終了"
     );
 
     waiting.sort((a, b) => {
@@ -535,6 +536,128 @@ function updatePlayerStats(playerId, isWinner, timestamp) {
 // ----------------------------------------------------------------------
 // --- テスト・管理用関数 ---
 // ----------------------------------------------------------------------
+
+/**
+ * プレイヤーのドロップアウトを処理します。
+ * 指定されたプレイヤーの参加状況を「終了」に変更し、進行中の対戦を無効にします。
+ */
+function handleDropout() {
+  const ui = SpreadsheetApp.getUi();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // プレイヤーIDの数字部分を尋ねる
+  const response = ui.prompt(
+    'プレイヤーのドロップアウト',
+    'ドロップアウトするプレイヤーIDの**数字部分のみ**を入力してください (例: P001なら「1」)。',
+    ui.ButtonSet.OK_CANCEL
+  );
+
+  if (response.getSelectedButton() !== ui.Button.OK) {
+    ui.alert('処理をキャンセルしました。');
+    return;
+  }
+
+  const rawId = response.getResponseText().trim();
+
+  // 数字入力チェックとP00X形式への変換
+  if (!/^\d+$/.test(rawId)) {
+    ui.alert('エラー: IDは数字のみで入力してください。');
+    return;
+  }
+
+  const playerId = PLAYER_ID_PREFIX + Utilities.formatString(`%0${ID_DIGITS}d`, parseInt(rawId, 10));
+
+  // 確認ダイアログ
+  const confirmResponse = ui.alert(
+    'ドロップアウトの確認',
+    `プレイヤー ${playerId} をドロップアウトさせ、参加状況を「終了」に変更します。\n` +
+    '進行中の対戦がある場合は無効となります。\n\n' +
+    'よろしいですか？',
+    ui.ButtonSet.YES_NO
+  );
+
+  if (confirmResponse !== ui.Button.YES) {
+    ui.alert('処理をキャンセルしました。');
+    return;
+  }
+
+  try {
+    // プレイヤーシートの更新
+    const playerSheet = ss.getSheetByName(SHEET_PLAYERS);
+    const { indices: playerIndices, data: playerData } = validateHeaders(playerSheet, SHEET_PLAYERS);
+    
+    let playerFound = false;
+    for (let i = 1; i < playerData.length; i++) {
+      const row = playerData[i];
+      if (row[playerIndices["プレイヤーID"]] === playerId) {
+        playerSheet.getRange(i + 1, playerIndices["参加状況"] + 1).setValue("終了");
+        playerFound = true;
+        break;
+      }
+    }
+
+    if (!playerFound) {
+      ui.alert(`エラー: プレイヤーID ${playerId} が見つかりません。`);
+      return;
+    }
+
+    // 対戦中シートのチェックと更新
+    const inProgressSheet = ss.getSheetByName(SHEET_IN_PROGRESS);
+    const { indices: inProgressIndices, data: inProgressData } = validateHeaders(inProgressSheet, SHEET_IN_PROGRESS);
+
+    let matchCancelled = false;
+    let opponentId = null;
+    let matchRow = -1;
+
+    for (let i = 1; i < inProgressData.length; i++) {
+      const row = inProgressData[i];
+      if (row[inProgressIndices["プレイヤー1 ID"]] === playerId) {
+        opponentId = row[inProgressIndices["プレイヤー2 ID"]];
+        matchRow = i + 1;
+        break;
+      } else if (row[inProgressIndices["プレイヤー2 ID"]] === playerId) {
+        opponentId = row[inProgressIndices["プレイヤー1 ID"]];
+        matchRow = i + 1;
+        break;
+      }
+    }
+
+    if (matchRow !== -1) {
+      // 対戦中の試合を無効化
+      inProgressSheet.getRange(matchRow, 1, 1, 2).clearContent();
+      matchCancelled = true;
+
+      // 対戦相手を待機状態に戻す
+      for (let i = 1; i < playerData.length; i++) {
+        const row = playerData[i];
+        if (row[playerIndices["プレイヤーID"]] === opponentId) {
+          playerSheet.getRange(i + 1, playerIndices["参加状況"] + 1).setValue("待機");
+          break;
+        }
+      }
+    }
+
+    // 結果の通知
+    let message = `プレイヤー ${playerId} のドロップアウトを処理しました。\n参加状況を「終了」に変更しました。`;
+    if (matchCancelled) {
+      message += `\n\n進行中の対戦を無効とし、対戦相手（${opponentId}）を待機状態に戻しました。`;
+    }
+    ui.alert('完了', message, ui.ButtonSet.OK);
+
+    // 対戦中シートの整理
+    cleanUpInProgressSheet();
+
+    // 新しいマッチングの実行
+    const waitingPlayersCount = getWaitingPlayers().length;
+    if (waitingPlayersCount >= 2) {
+      matchPlayers();
+    }
+
+  } catch (e) {
+    ui.alert("エラーが発生しました: " + e.toString());
+    Logger.log("handleDropout エラー: " + e.toString());
+  }
+}
 
 /**
  * 新しいプレイヤーを登録します。（本番・運営用）
