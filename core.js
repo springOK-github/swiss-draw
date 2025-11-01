@@ -181,143 +181,26 @@ function promptAndRecordResult() {
  * 対戦結果を記録し、プレイヤーの統計情報とステータスを更新し、自動で次をマッチングします。
  */
 function recordResult(winnerId) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
   const ui = SpreadsheetApp.getUi();
-  let lock = null;
 
   if (!winnerId) {
     ui.alert("勝者IDを入力してください。");
     return;
   }
 
-  try {
-    lock = acquireLock('対戦結果の記録');
+  // 共通処理を呼び出し
+  const result = handleMatchStateChange({
+    targetPlayerId: winnerId,
+    newStatus: PLAYER_STATUS.WAITING,
+    opponentNewStatus: PLAYER_STATUS.WAITING,
+    recordResult: true,
+    isTargetWinner: true
+  });
 
-    // まず両プレイヤーの状態を確認
-    const playerSheet = ss.getSheetByName(SHEET_PLAYERS);
-    const { indices: playerIndices, data: playerData } = validateHeaders(playerSheet, SHEET_PLAYERS);
-
-    let winnerFound = false;
-    let winnerDropped = false;
-    let loserDropped = false;
-
-    const inProgressSheet = ss.getSheetByName(SHEET_IN_PROGRESS);
-    const { indices: inProgressIndices, data: inProgressData } = 
-      validateHeaders(inProgressSheet, SHEET_IN_PROGRESS);
-    
-    let tempLoserId = null;
-    // まず敗者を特定
-    for (let i = 1; i < inProgressData.length; i++) {
-      const row = inProgressData[i];
-      const p1 = row[inProgressIndices["プレイヤー1 ID"]];
-      const p2 = row[inProgressIndices["プレイヤー2 ID"]];
-
-      if (p1 === winnerId) {
-        tempLoserId = p2;
-        break;
-      } else if (p2 === winnerId) {
-        tempLoserId = p1;
-        break;
-      }
-    }
-
-    if (tempLoserId === null) {
-      ui.alert(`エラー: 勝者ID (${winnerId}) は「対戦中」シートに見つかりませんでした。\n入力IDが間違っているか、対戦が記録されていません。`);
-      return;
-    }
-
-    // 両プレイヤーの状態を確認
-    for (let i = 1; i < playerData.length; i++) {
-      const row = playerData[i];
-      const playerId = row[playerIndices["プレイヤーID"]];
-      const status = row[playerIndices["参加状況"]];
-      
-      if (playerId === winnerId) {
-        winnerFound = true;
-        winnerDropped = status === PLAYER_STATUS.DROPPED;
-      } else if (playerId === tempLoserId) {
-        loserDropped = status === PLAYER_STATUS.DROPPED;
-      }
-    }
-
-    if (!winnerFound) {
-      ui.alert('エラー: 指定された勝者が見つかりません。');
-      return;
-    }
-
-    if (winnerDropped) {
-      ui.alert('エラー: 勝者としてマークされたプレイヤーはすでにドロップアウトしています。');
-      return;
-    }
-
-    if (loserDropped) {
-      ui.alert('エラー: 敗者としてマークされたプレイヤーはすでにドロップアウトしています。');
-      return;
-    }
-
-    // tempLoserIdをloserIdとして使用
-    const loserId = tempLoserId;
-    let rowToClear = -1;
-
-    // 対戦中の行を特定
-    for (let i = 1; i < inProgressData.length; i++) {
-      const row = inProgressData[i];
-      const p1 = row[inProgressIndices["プレイヤー1 ID"]];
-      const p2 = row[inProgressIndices["プレイヤー2 ID"]];
-
-      if ((p1 === winnerId && p2 === loserId) || (p2 === winnerId && p1 === loserId)) {
-        rowToClear = i + 1;
-        break;
-      }
-    }
-
-    const currentTime = new Date();
-
-    const historySheet = ss.getSheetByName(SHEET_HISTORY);
-    validateHeaders(historySheet, SHEET_HISTORY);
-    const newId = "T" + Utilities.formatString("%04d", historySheet.getLastRow());
-
-    historySheet.appendRow([
-      currentTime,
-      winnerId,
-      loserId,
-      winnerId,
-      newId
-    ]);
-
-    updatePlayerStats(winnerId, true, currentTime);
-    updatePlayerStats(loserId, false, currentTime);
-
-    if (rowToClear !== -1) {
-      inProgressSheet.getRange(rowToClear, 1, 1, 2).clearContent();
-    }
-
-    // プレイヤーの状態を待機に戻す
-    for (let i = 1; i < playerData.length; i++) {
-      const row = playerData[i];
-      const playerId = row[playerIndices["プレイヤーID"]];
-      if (playerId === winnerId || playerId === loserId) {
-        playerSheet.getRange(i + 1, playerIndices["参加状況"] + 1)
-          .setValue(PLAYER_STATUS.WAITING);
-      }
-    }
-
-    Logger.log(`対戦結果が記録されました。勝者: ${winnerId}, 敗者: ${loserId}。両プレイヤーは待機状態に戻りました。`);
-
-    cleanUpInProgressSheet();
-
-    const waitingPlayersCount = getWaitingPlayers().length;
-    if (waitingPlayersCount >= 2) {
-      Logger.log(`待機プレイヤーが ${waitingPlayersCount} 人いるため、自動でマッチングを開始します。`);
-      matchPlayers();
-    } else {
-      Logger.log(`待機プレイヤーが ${waitingPlayersCount} 人です。自動マッチングはスキップされました。`);
-    }
-
-  } catch (e) {
-    ui.alert("エラーが発生しました: " + e.toString());
-    Logger.log("recordResult エラー: " + e.toString());
-  } finally {
-    releaseLock(lock);
+  if (!result.success) {
+    ui.alert('エラー', result.message, ui.ButtonSet.OK);
+    return;
   }
+
+  Logger.log(`対戦結果が記録されました。勝者: ${winnerId}, 敗者: ${result.opponentId}。両プレイヤーは待機状態に戻りました。`);
 }

@@ -47,8 +47,6 @@ function registerPlayer() {
  */
 function dropoutPlayer() {
   const ui = SpreadsheetApp.getUi();
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let lock = null;
 
   const response = ui.prompt(
     'プレイヤーのドロップアウト',
@@ -83,82 +81,24 @@ function dropoutPlayer() {
     return;
   }
 
-  try {
-    // プレイヤー状態の変更とマッチングに関わる処理なので、両方のロックを取得
-    lock = acquireLock('プレイヤー状態変更');
-    const matchLock = acquireLock('対戦結果の記録');
+  // 共通処理を呼び出し
+  const result = handleMatchStateChange({
+    targetPlayerId: playerId,
+    newStatus: PLAYER_STATUS.DROPPED,
+    opponentNewStatus: PLAYER_STATUS.WAITING,
+    recordResult: false
+  });
 
-    const playerSheet = ss.getSheetByName(SHEET_PLAYERS);
-    const { indices: playerIndices, data: playerData } = validateHeaders(playerSheet, SHEET_PLAYERS);
-    
-    let playerFound = false;
-    for (let i = 1; i < playerData.length; i++) {
-      const row = playerData[i];
-      if (row[playerIndices["プレイヤーID"]] === playerId) {
-        playerSheet.getRange(i + 1, playerIndices["参加状況"] + 1).setValue(PLAYER_STATUS.DROPPED);
-        playerFound = true;
-        break;
-      }
-    }
-
-    if (!playerFound) {
-      ui.alert(`エラー: プレイヤーID ${playerId} が見つかりません。`);
-      return;
-    }
-
-    const inProgressSheet = ss.getSheetByName(SHEET_IN_PROGRESS);
-    const { indices: inProgressIndices, data: inProgressData } = validateHeaders(inProgressSheet, SHEET_IN_PROGRESS);
-
-    let matchCancelled = false;
-    let opponentId = null;
-    let matchRow = -1;
-
-    for (let i = 1; i < inProgressData.length; i++) {
-      const row = inProgressData[i];
-      if (row[inProgressIndices["プレイヤー1 ID"]] === playerId) {
-        opponentId = row[inProgressIndices["プレイヤー2 ID"]];
-        matchRow = i + 1;
-        break;
-      } else if (row[inProgressIndices["プレイヤー2 ID"]] === playerId) {
-        opponentId = row[inProgressIndices["プレイヤー1 ID"]];
-        matchRow = i + 1;
-        break;
-      }
-    }
-
-    if (matchRow !== -1) {
-      inProgressSheet.getRange(matchRow, 1, 1, 2).clearContent();
-      matchCancelled = true;
-
-      for (let i = 1; i < playerData.length; i++) {
-        const row = playerData[i];
-        if (row[playerIndices["プレイヤーID"]] === opponentId) {
-          playerSheet.getRange(i + 1, playerIndices["参加状況"] + 1).setValue(PLAYER_STATUS.WAITING);
-          break;
-        }
-      }
-    }
-
-    let message = `プレイヤー ${playerId} のドロップアウトを処理しました。\n参加状況を「終了」に変更しました。`;
-    if (matchCancelled) {
-      message += `\n\n進行中の対戦を無効とし、対戦相手（${opponentId}）を待機状態に戻しました。`;
-    }
-    ui.alert('完了', message, ui.ButtonSet.OK);
-
-    cleanUpInProgressSheet();
-
-    const waitingPlayersCount = getWaitingPlayers().length;
-    if (waitingPlayersCount >= 2) {
-      matchPlayers();
-    }
-
-  } catch (e) {
-    ui.alert("エラーが発生しました: " + e.toString());
-    Logger.log("handleDropout エラー: " + e.toString());
-  } finally {
-    releaseLock(matchLock);
-    releaseLock(lock);
+  if (!result.success) {
+    ui.alert('エラー', result.message, ui.ButtonSet.OK);
+    return;
   }
+
+  let message = `プレイヤー ${playerId} のドロップアウトを処理しました。\n参加状況を「終了」に変更しました。`;
+  if (result.opponentId) {
+    message += `\n\n進行中の対戦を無効とし、対戦相手（${result.opponentId}）を待機状態に戻しました。`;
+  }
+  ui.alert('完了', message, ui.ButtonSet.OK);
 }
 
 // =========================================
