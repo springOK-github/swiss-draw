@@ -41,6 +41,76 @@ Google Apps Script (GAS) とスプレッドシートで動作するポケモン�
 
 ## 開発者向け情報
 
+### Claspによるローカル開発環境のセットアップ
+
+1. Node.jsをインストール（[公式サイト](https://nodejs.org/)）
+
+2. Claspをグローバルにインストール
+```bash
+npm install -g @google/clasp
+```
+
+3. Googleアカウントにログイン
+```bash
+clasp login
+```
+
+4. プロジェクトのクローン
+```bash
+# スクリプトIDを指定してクローン
+clasp clone "スクリプトID"
+```
+
+5. ローカルでの開発
+```bash
+# ファイルの変更を監視して自動アップロード
+clasp push --watch
+
+# 手動でアップロード
+clasp push
+
+# 現在のバージョンをデプロイ
+clasp deploy
+```
+
+### GitHubとの連携
+
+1. リポジトリの作成とクローン
+```bash
+# GitHubでリポジトリを作成後、ローカルにクローン
+git clone https://github.com/ユーザー名/gunslinger.git
+cd gunslinger
+```
+
+2. Claspプロジェクトとの連携
+```bash
+# Claspプロジェクトをクローン（既存の場合は省略）
+clasp clone "スクリプトID"
+
+# .gitignoreファイルを作成
+echo ".clasp.json" >> .gitignore
+```
+
+3. 開発ワークフロー
+```bash
+# GASの変更をプッシュ
+clasp push
+
+# GitHubへの変更をプッシュ
+git add .
+git commit -m "変更内容の説明"
+git push origin main
+
+# 他の開発者の変更を取得
+git pull origin main
+```
+
+4. 推奨事項
+- コミットメッセージは日本語で具体的に記述
+- `clasp push`と`git push`を併用して、GASとGitHubの両方で最新状態を維持
+- 大きな機能追加時はブランチを作成して作業
+```
+
 ### テスト用関数
 
 テストデータの作成やシステムの動作確認のために、以下の関数が利用可能です：
