@@ -3,10 +3,10 @@
  */
 
 /**
- * プレイヤーのドロップアウトを処理します。
- * 指定されたプレイヤーの参加状況を「終了」に変更し、進行中の対戦を無効にします。
+ * プレイヤーを大会からドロップアウトさせます。
+ * 参加状況を「終了」に変更し、進行中の対戦がある場合は無効にします。
  */
-function handleDropout() {
+function dropoutPlayer() {
   const ui = SpreadsheetApp.getUi();
   const ss = SpreadsheetApp.getActiveSpreadsheet();
 

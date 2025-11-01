@@ -11,7 +11,7 @@ function onOpen() {
     .addItem('シートの初期設定', 'setupSheets')
     .addSeparator()
     .addItem('新しいプレイヤーの登録', 'registerPlayer')
-    .addItem('プレイヤーのドロップアウト', 'handleDropout')
+    .addItem('プレイヤーのドロップアウト', 'dropoutPlayer')
     .addSeparator()
     .addItem('対戦結果の入力', 'promptAndRecordResult')
     .addToUi();
