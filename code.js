@@ -141,7 +141,7 @@ function matchPlayers() {
     // シートヘッダーの検証
     validateHeaders(inProgressSheet, SHEET_IN_PROGRESS);
     const playerSheet = ss.getSheetByName(SHEET_PLAYERS);
-    const { indices: playerIndices } = validateHeaders(playerSheet, SHEET_PLAYERS);
+    const { indices: playerIndices, data: playerData } = validateHeaders(playerSheet, SHEET_PLAYERS);
 
     // 1. 待機プレイヤーの取得とマッチング
     const waitingPlayers = getWaitingPlayers();
