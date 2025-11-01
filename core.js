@@ -15,8 +15,10 @@
 function matchPlayers() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const inProgressSheet = ss.getSheetByName(SHEET_IN_PROGRESS);
+  let lock = null;
 
   try {
+    lock = acquireLock('マッチング実行');
     validateHeaders(inProgressSheet, SHEET_IN_PROGRESS);
     const playerSheet = ss.getSheetByName(SHEET_PLAYERS);
     const { indices: playerIndices, data: playerData } = validateHeaders(playerSheet, SHEET_PLAYERS);
@@ -90,6 +92,8 @@ function matchPlayers() {
   } catch (e) {
     Logger.log("matchPlayers エラー: " + e.message);
     return 0;
+  } finally {
+    releaseLock(lock);
   }
 }
 
@@ -175,6 +179,7 @@ function promptAndRecordResult() {
 function recordResult(winnerId) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const ui = SpreadsheetApp.getUi();
+  let lock = null;
 
   if (!winnerId) {
     ui.alert("勝者IDを入力してください。");
@@ -182,6 +187,7 @@ function recordResult(winnerId) {
   }
 
   try {
+    lock = acquireLock('対戦結果の記録');
     const inProgressSheet = ss.getSheetByName(SHEET_IN_PROGRESS);
     const { indices: inProgressIndices, data: inProgressData } = 
       validateHeaders(inProgressSheet, SHEET_IN_PROGRESS);
@@ -259,5 +265,7 @@ function recordResult(winnerId) {
   } catch (e) {
     ui.alert("エラーが発生しました: " + e.toString());
     Logger.log("recordResult エラー: " + e.toString());
+  } finally {
+    releaseLock(lock);
   }
 }

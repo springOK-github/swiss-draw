@@ -48,6 +48,7 @@ function registerPlayer() {
 function dropoutPlayer() {
   const ui = SpreadsheetApp.getUi();
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let lock = null;
 
   const response = ui.prompt(
     'プレイヤーのドロップアウト',
@@ -83,6 +84,7 @@ function dropoutPlayer() {
   }
 
   try {
+    lock = acquireLock('プレイヤーのドロップアウト');
     const playerSheet = ss.getSheetByName(SHEET_PLAYERS);
     const { indices: playerIndices, data: playerData } = validateHeaders(playerSheet, SHEET_PLAYERS);
     
@@ -150,6 +152,8 @@ function dropoutPlayer() {
   } catch (e) {
     ui.alert("エラーが発生しました: " + e.toString());
     Logger.log("handleDropout エラー: " + e.toString());
+  } finally {
+    releaseLock(lock);
   }
 }
 
