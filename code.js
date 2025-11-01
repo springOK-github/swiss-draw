@@ -15,18 +15,66 @@ const SHEET_IN_PROGRESS = "対戦中";
 const PLAYER_ID_PREFIX = "P";
 const ID_DIGITS = 3; // IDの数字部分の桁数 (例: P001なら3)
 
+// --- シートヘッダー定義 ---
+const REQUIRED_HEADERS = {
+  [SHEET_PLAYERS]: ["プレイヤーID", "勝数", "敗数", "消化試合数", "参加状況", "最終対戦日時"],
+  [SHEET_HISTORY]: ["日時", "プレイヤー1 ID", "プレイヤー2 ID", "勝者ID", "対戦ID"],
+  [SHEET_IN_PROGRESS]: ["プレイヤー1 ID", "プレイヤー2 ID"]
+};
+
+/**
+ * シートのヘッダーを検証し、列インデックスを返します。
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet - 検証対象のシート
+ * @param {string} sheetName - シート名（SHEET_PLAYERS等の定数）
+ * @returns {{headers: string[], indices: Object.<string, number>, data: any[][]}} ヘッダー情報と全データ
+ * @throws {Error} 必須ヘッダーが不足している場合
+ */
+function validateHeaders(sheet, sheetName) {
+  if (!sheet) {
+    throw new Error(`シート「${sheetName}」が見つかりません。`);
+  }
+
+  const data = sheet.getDataRange().getValues();
+  if (!data || data.length === 0) {
+    throw new Error(`シート「${sheetName}」にデータがありません。`);
+  }
+
+  const headers = data[0].map(h => String(h).trim());
+  const indices = {};
+  const missing = [];
+  
+  const requiredHeaders = REQUIRED_HEADERS[sheetName];
+  if (!requiredHeaders) {
+    throw new Error(`シート「${sheetName}」の必須ヘッダー定義が見つかりません。`);
+  }
+
+  requiredHeaders.forEach(required => {
+    const idx = headers.indexOf(required);
+    if (idx === -1) {
+      missing.push(required);
+    } else {
+      indices[required] = idx;
+    }
+  });
+
+  if (missing.length > 0) {
+    throw new Error(`シート「${sheetName}」に必須ヘッダーが不足しています: ${missing.join(", ")}`);
+  }
+
+  return { headers, indices, data };
+}
+
 /**
  * スプレッドシートを開いたときにカスタムメニューを作成します。
  */
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
   ui.createMenu('🃏 ポケモンマッチング')
-    .addItem('① シートの初期設定', 'setupSheets')
+    .addItem('シートの初期設定', 'setupSheets')
     .addSeparator()
-    .addItem('② 新しいプレイヤーの登録 (自動マッチング実行)', 'registerPlayer')
-    .addItem('②-B テストプレイヤー登録 (初期登録用)', 'registerTestPlayers')
+    .addItem('新しいプレイヤーの登録', 'registerPlayer')
     .addSeparator()
-    .addItem('④ 対戦結果の記録 (自動マッチング実行)', 'promptAndRecordResult')
+    .addItem('対戦結果の入力', 'promptAndRecordResult')
     .addToUi();
 }
 
@@ -88,93 +136,81 @@ function matchPlayers() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const inProgressSheet = ss.getSheetByName(SHEET_IN_PROGRESS);
 
-  // 1. 待機中のプレイヤーリスト（勝数順 and 最終対戦日時順）を取得
-  const waitingPlayers = getWaitingPlayers();
-
-  if (waitingPlayers.length < 2) {
-    Logger.log(`警告: 現在待機中のプレイヤーは ${waitingPlayers.length} 人です。2人以上必要です。`);
-    return;
-  }
-
-  // 2. マッチングを実行 (再戦回避のみ)
-  let matches = [];
-  let availablePlayers = [...waitingPlayers]; // 操作用のリスト
-  let skippedPlayers = []; // マッチングできなかったプレイヤー
-
-  Logger.log("--- 厳格な再戦回避マッチング開始 (勝者優先) ---");
-  while (availablePlayers.length >= 2) {
-    const p1 = availablePlayers.shift();
-    const p1Id = p1[0];
-    const p1BlackList = getPastOpponents(p1Id);
-
-    let p2Index = -1;
-
-    // 再戦なしの相手を探す
-    for (let i = 0; i < availablePlayers.length; i++) {
-      const p2Id = availablePlayers[i][0];
-      if (!p1BlackList.includes(p2Id)) {
-        p2Index = i;
-        break;
-      }
-    }
-
-    if (p2Index !== -1) {
-      // 再戦なしでマッチング成立
-      const p2 = availablePlayers.splice(p2Index, 1)[0];
-      matches.push([p1Id, p2[0]]);
-      Logger.log(`マッチング成立 (再戦なし): ${p1Id} vs ${p2[0]}`);
-    } else {
-      // 適切な相手が見つからなかった場合、スキップして待機リストに残す
-      skippedPlayers.push(p1);
-    }
-  }
-
-  // 最後に availablePlayers に残ったプレイヤー（奇数で余ったプレイヤー、またはマッチング不可のプレイヤー）もスキップ扱い
-  skippedPlayers.push(...availablePlayers);
-
-  if (skippedPlayers.length > 0) {
-    Logger.log(`警告: ${skippedPlayers.length} 人のプレイヤーは適切な相手が見つからなかったため、待機を継続します。`);
-  }
-
-  // 3. シートの更新
-  if (matches.length > 0) {
-    // プレイヤーシートの「参加状況」を更新（待機 -> 対戦中）
+  try {
+    // シートヘッダーの検証
+    validateHeaders(inProgressSheet, SHEET_IN_PROGRESS);
     const playerSheet = ss.getSheetByName(SHEET_PLAYERS);
-    const playerIdsToUpdate = matches.flat();
+    const { indices: playerIndices } = validateHeaders(playerSheet, SHEET_PLAYERS);
 
-    const data = playerSheet.getDataRange().getValues();
-    const headers = data[0];
-    const statusCol = headers.indexOf("参加状況");
-    const idCol = headers.indexOf("プレイヤーID");
+    // 1. 待機プレイヤーの取得とマッチング
+    const waitingPlayers = getWaitingPlayers();
+    if (waitingPlayers.length < 2) {
+      Logger.log(`警告: 現在待機中のプレイヤーは ${waitingPlayers.length} 人です。2人以上必要です。`);
+      return;
+    }
 
-    let inProgressData = [];
+    let matches = [];
+    let availablePlayers = [...waitingPlayers];
+    let skippedPlayers = [];
 
-    for (let i = 1; i < data.length; i++) {
-      const row = data[i];
-      const playerId = row[idCol];
-      if (playerIdsToUpdate.includes(playerId)) {
-        playerSheet.getRange(i + 1, statusCol + 1).setValue("対戦中");
+    Logger.log("--- 厳格な再戦回避マッチング開始 (勝者優先) ---");
+    while (availablePlayers.length >= 2) {
+      const p1 = availablePlayers.shift();
+      const p1Id = p1[playerIndices["プレイヤーID"]];
+      const p1BlackList = getPastOpponents(p1Id);
+
+      let p2Index = -1;
+      for (let i = 0; i < availablePlayers.length; i++) {
+        const p2Id = availablePlayers[i][playerIndices["プレイヤーID"]];
+        if (!p1BlackList.includes(p2Id)) {
+          p2Index = i;
+          break;
+        }
+      }
+
+      if (p2Index !== -1) {
+        const p2 = availablePlayers.splice(p2Index, 1)[0];
+        matches.push([p1Id, p2[playerIndices["プレイヤーID"]]]);
+        Logger.log(`マッチング成立 (再戦なし): ${p1Id} vs ${p2[playerIndices["プレイヤーID"]]}`);
+      } else {
+        skippedPlayers.push(p1);
       }
     }
 
-    // --- 対戦中シートへの追記処理 ---
-    const lastRow = inProgressSheet.getLastRow();
-    let startRow = lastRow + 1;
+    skippedPlayers.push(...availablePlayers);
 
-    for (const match of matches) {
-      // プレイヤーIDのペアのみを配列に追加
-      inProgressData.push([match[0], match[1]]);
+    if (skippedPlayers.length > 0) {
+      Logger.log(`警告: ${skippedPlayers.length} 人のプレイヤーは適切な相手が見つからなかったため、待機を継続します。`);
     }
 
-    if (inProgressData.length > 0) {
-      // B列まで(2列)にデータを追記する
-      inProgressSheet.getRange(startRow, 1, inProgressData.length, 2).setValues(inProgressData);
+    // 2. マッチング結果の反映
+    if (matches.length > 0) {
+      const playerIdsToUpdate = matches.flat();
+      
+      for (let i = 1; i < playerData.length; i++) {
+        const row = playerData[i];
+        const playerId = row[playerIndices["プレイヤーID"]];
+        if (playerIdsToUpdate.includes(playerId)) {
+          playerSheet.getRange(i + 1, playerIndices["参加状況"] + 1)
+            .setValue("対戦中");
+        }
+      }
+
+      const lastRow = inProgressSheet.getLastRow();
+      if (matches.length > 0) {
+        inProgressSheet.getRange(lastRow + 1, 1, matches.length, 2)
+          .setValues(matches);
+      }
+
+      Logger.log(`マッチングが ${matches.length} 件成立しました。「対戦中」シートを確認してください。`);
+      return matches.length;
+    } else {
+      Logger.log("警告: 新しいマッチングは成立しませんでした。");
+      return 0;
     }
 
-    Logger.log(`マッチングが ${matches.length} 件成立しました。「対戦中」シートを確認してください。`);
-    return matches.length; // 成立したマッチング数を返す
-  } else {
-    Logger.log("警告: 新しいマッチングは成立しませんでした。");
+  } catch (e) {
+    Logger.log("matchPlayers エラー: " + e.message);
     return 0;
   }
 }
@@ -219,89 +255,85 @@ function recordResult(winnerId) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const ui = SpreadsheetApp.getUi();
 
-  // winnerIdは既にP00X形式にフォーマットされていることを前提とする
   if (!winnerId) {
     ui.alert("勝者IDを入力してください。");
     return;
   }
 
-  // 1. 対戦中シートから敗者IDを特定
-  const inProgressSheet = ss.getSheetByName(SHEET_IN_PROGRESS);
-  const data = inProgressSheet.getDataRange().getValues();
-
-  let loserId = null;
-  let rowToClear = -1; // クリア対象の行番号
-
-  for (let i = 1; i < data.length; i++) {
-    const row = data[i];
-    const p1 = row[0];
-    const p2 = row[1];
-
-    // シート上のID (P00X形式) と入力されたID (P00X形式) を比較
-    if (p1 === winnerId) {
-      loserId = p2;
-      rowToClear = i + 1; // シートの行番号
-      break;
-    } else if (p2 === winnerId) {
-      loserId = p1;
-      rowToClear = i + 1; // シートの行番号
-      break;
-    }
-  }
-
-  if (loserId === null) {
-    ui.alert(`エラー: 勝者ID (${winnerId}) は「対戦中」シートに見つかりませんでした。\n入力IDが間違っているか、対戦が記録されていません。`);
-    return;
-  }
-
-  const currentTime = new Date(); // 現在時刻を取得
-
-  // 2. 対戦履歴に記録
   try {
+    // 1. 対戦中シートの検証と敗者ID特定
+    const inProgressSheet = ss.getSheetByName(SHEET_IN_PROGRESS);
+    const { indices: inProgressIndices, data: inProgressData } = 
+      validateHeaders(inProgressSheet, SHEET_IN_PROGRESS);
+
+    let loserId = null;
+    let rowToClear = -1;
+
+    for (let i = 1; i < inProgressData.length; i++) {
+      const row = inProgressData[i];
+      const p1 = row[inProgressIndices["プレイヤー1 ID"]];
+      const p2 = row[inProgressIndices["プレイヤー2 ID"]];
+
+      if (p1 === winnerId) {
+        loserId = p2;
+        rowToClear = i + 1;
+        break;
+      } else if (p2 === winnerId) {
+        loserId = p1;
+        rowToClear = i + 1;
+        break;
+      }
+    }
+
+    if (loserId === null) {
+      ui.alert(`エラー: 勝者ID (${winnerId}) は「対戦中」シートに見つかりませんでした。\n入力IDが間違っているか、対戦が記録されていません。`);
+      return;
+    }
+
+    const currentTime = new Date();
+
+    // 2. 対戦履歴シートの検証と記録
     const historySheet = ss.getSheetByName(SHEET_HISTORY);
+    validateHeaders(historySheet, SHEET_HISTORY);
     const newId = "T" + Utilities.formatString("%04d", historySheet.getLastRow());
 
     historySheet.appendRow([
-      currentTime, // 履歴シートには処理時刻を記録
+      currentTime,
       winnerId,
       loserId,
       winnerId,
       newId
     ]);
 
-    // 3. プレイヤーの統計情報とステータスを更新
-    updatePlayerStats(winnerId, true, currentTime); // 勝者の統計と最終対戦日時を更新
-    updatePlayerStats(loserId, false, currentTime); // 敗者の統計と最終対戦日時を更新
+    // 3. プレイヤー統計更新
+    updatePlayerStats(winnerId, true, currentTime);
+    updatePlayerStats(loserId, false, currentTime);
 
-    // 4. 「対戦中」シートから終了した対戦のコンテンツをクリア
+    // 4. 対戦中シートのクリア
     if (rowToClear !== -1) {
-      // A列とB列 (2列) のみをクリア
       inProgressSheet.getRange(rowToClear, 1, 1, 2).clearContent();
     }
 
-    // 5. 参加状況を「待機」に更新
+    // 5. プレイヤーシートの検証と参加状況更新
     const playerSheet = ss.getSheetByName(SHEET_PLAYERS);
-    const dataRange = playerSheet.getDataRange();
-    const values = dataRange.getValues();
-    const headers = values[0];
-    const statusCol = headers.indexOf("参加状況");
-    const idCol = headers.indexOf("プレイヤーID");
+    const { indices: playerIndices, data: playerData } = 
+      validateHeaders(playerSheet, SHEET_PLAYERS);
 
-    for (let i = 1; i < values.length; i++) {
-      const row = values[i];
-      const playerId = row[idCol];
+    for (let i = 1; i < playerData.length; i++) {
+      const row = playerData[i];
+      const playerId = row[playerIndices["プレイヤーID"]];
       if (playerId === winnerId || playerId === loserId) {
-        // updatePlayerStatsですでに日時を記録しているため、ここではステータス更新のみ
-        playerSheet.getRange(i + 1, statusCol + 1).setValue("待機");
+        playerSheet.getRange(i + 1, playerIndices["参加状況"] + 1)
+          .setValue("待機");
       }
     }
 
     Logger.log(`対戦結果が記録されました。勝者: ${winnerId}, 敗者: ${loserId}。両プレイヤーは待機状態に戻りました。`);
 
-    // 6. 対戦中シートを自動で整理
+    // 6. 対戦中シートを整理
     cleanUpInProgressSheet();
 
-    // 7. 待機プレイヤーが2人以上いれば、自動でマッチングを実行
+    // 7. 待機プレイヤーが2人以上いれば自動マッチング
     const waitingPlayersCount = getWaitingPlayers().length;
     if (waitingPlayersCount >= 2) {
       Logger.log(`待機プレイヤーが ${waitingPlayersCount} 人いるため、自動でマッチングを開始します。`);
@@ -312,7 +344,7 @@ function recordResult(winnerId) {
 
   } catch (e) {
     ui.alert("エラーが発生しました: " + e.toString());
-    Logger.log("エラー: " + e.toString());
+    Logger.log("recordResult エラー: " + e.toString());
   }
 }
 
@@ -324,29 +356,29 @@ function cleanUpInProgressSheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const inProgressSheet = ss.getSheetByName(SHEET_IN_PROGRESS);
 
-  const lastRow = inProgressSheet.getLastRow();
-  if (lastRow <= 1) {
-    Logger.log("「対戦中」シートにデータがないため、整理は不要です。");
-    return;
-  }
+  try {
+    validateHeaders(inProgressSheet, SHEET_IN_PROGRESS);
 
-  // データの最終行から2行目まで逆順にチェック
-  // 逆順にすることで、行を削除してもインデックスが狂わない
-  let deletedCount = 0;
-  for (let i = lastRow; i >= 2; i--) {
-    const cellA = inProgressSheet.getRange(i, 1).getValue(); // A列の値
-
-    // A列が空（対戦が終了しクリアされた行）であれば、行を削除
-    if (cellA === "") {
-      inProgressSheet.deleteRow(i);
-      deletedCount++;
+    const lastRow = inProgressSheet.getLastRow();
+    if (lastRow <= 1) {
+      Logger.log("「対戦中」シートにデータがないため、整理は不要です。");
+      return;
     }
-  }
 
-  if (deletedCount > 0) {
-    Logger.log(`対戦中シートの整理 (自動実行) が完了しました。${deletedCount} 行の空行を削除しました。`);
-  } else {
-    // 頻繁に実行されるため、特にログは出力しない
+    let deletedCount = 0;
+    for (let i = lastRow; i >= 2; i--) {
+      const cellA = inProgressSheet.getRange(i, 1).getValue();
+      if (cellA === "") {
+        inProgressSheet.deleteRow(i);
+        deletedCount++;
+      }
+    }
+
+    if (deletedCount > 0) {
+      Logger.log(`対戦中シートの整理 (自動実行) が完了しました。${deletedCount} 行の空行を削除しました。`);
+    }
+  } catch (e) {
+    Logger.log("cleanUpInProgressSheet エラー: " + e.message);
   }
 }
 
@@ -364,31 +396,28 @@ function getWaitingPlayers() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const playerSheet = ss.getSheetByName(SHEET_PLAYERS);
 
-  const data = playerSheet.getDataRange().getValues();
-  if (data.length <= 1) return [];
+  try {
+    const { indices, data } = validateHeaders(playerSheet, SHEET_PLAYERS);
+    if (data.length <= 1) return [];
 
-  const headers = data[0];
-  const winCol = headers.indexOf("勝数");
-  const statusCol = headers.indexOf("参加状況");
-  const lastPlayedCol = headers.indexOf("最終対戦日時");
+    const waiting = data.slice(1).filter(row => 
+      row[indices["参加状況"]] === "待機"
+    );
 
-  const waiting = data.slice(1).filter(row => row[statusCol] === "待機");
+    waiting.sort((a, b) => {
+      const winsDiff = b[indices["勝数"]] - a[indices["勝数"]];
+      if (winsDiff !== 0) return winsDiff;
 
-  // ソート処理
-  waiting.sort((a, b) => {
-    // 1. 勝数で比較 (b > a ならbが先)
-    if (b[winCol] !== a[winCol]) {
-      return b[winCol] - a[winCol];
-    }
+      const dateA = a[indices["最終対戦日時"]] instanceof Date ? a[indices["最終対戦日時"]].getTime() : 0;
+      const dateB = b[indices["最終対戦日時"]] instanceof Date ? b[indices["最終対戦日時"]].getTime() : 0;
+      return dateB - dateA;
+    });
 
-    // 2. 勝数が同じ場合、最終対戦日時で比較 (b > a ならbが先 = 新しい日時が先)
-    const dateA = a[lastPlayedCol] instanceof Date ? a[lastPlayedCol].getTime() : 0;
-    const dateB = b[lastPlayedCol] instanceof Date ? b[lastPlayedCol].getTime() : 0;
-
-    return dateB - dateA;
-  });
-
-  return waiting;
+    return waiting;
+  } catch (e) {
+    Logger.log("getWaitingPlayers エラー: " + e.message);
+    return [];
+  }
 }
 
 /**
@@ -398,24 +427,27 @@ function getPastOpponents(playerId) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const historySheet = ss.getSheetByName(SHEET_HISTORY);
 
-  const data = historySheet.getDataRange().getValues();
-  if (data.length <= 1) return [];
+  try {
+    const { indices, data } = validateHeaders(historySheet, SHEET_HISTORY);
+    if (data.length <= 1) return [];
 
-  const headers = data[0];
-  const p1Col = headers.indexOf("プレイヤー1 ID");
-  const p2Col = headers.indexOf("プレイヤー2 ID");
+    const p1Col = indices["プレイヤー1 ID"];
+    const p2Col = indices["プレイヤー2 ID"];
+    const opponents = new Set();
 
-  const opponents = new Set();
+    data.slice(1).forEach(row => {
+      if (row[p1Col] === playerId) {
+        opponents.add(row[p2Col]);
+      } else if (row[p2Col] === playerId) {
+        opponents.add(row[p1Col]);
+      }
+    });
 
-  data.slice(1).forEach(row => {
-    if (row[p1Col] === playerId) {
-      opponents.add(row[p2Col]);
-    } else if (row[p2Col] === playerId) {
-      opponents.add(row[p1Col]);
-    }
-  });
-
-  return Array.from(opponents);
+    return Array.from(opponents);
+  } catch (e) {
+    Logger.log("getPastOpponents エラー: " + e.message);
+    return [];
+  }
 }
 
 /**
@@ -425,36 +457,34 @@ function updatePlayerStats(playerId, isWinner, timestamp) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const playerSheet = ss.getSheetByName(SHEET_PLAYERS);
 
-  const data = playerSheet.getDataRange().getValues();
-  if (data.length <= 1) return;
+  try {
+    const { indices, data } = validateHeaders(playerSheet, SHEET_PLAYERS);
+    if (data.length <= 1) return;
 
-  const headers = data[0];
-  const idCol = headers.indexOf("プレイヤーID");
-  const winCol = headers.indexOf("勝数");
-  const lossCol = headers.indexOf("敗数");
-  const totalCol = headers.indexOf("消化試合数");
-  const lastPlayedCol = headers.indexOf("最終対戦日時");
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      if (row[indices["プレイヤーID"]] === playerId) {
+        const rowNum = i + 1;
+        const currentWins = parseInt(row[indices["勝数"]]) || 0;
+        const currentLosses = parseInt(row[indices["敗数"]]) || 0;
+        const currentTotal = parseInt(row[indices["消化試合数"]]) || 0;
 
-  for (let i = 1; i < data.length; i++) {
-    const row = data[i];
-    if (row[idCol] === playerId) {
-      const rowNum = i + 1;
+        playerSheet.getRange(rowNum, indices["勝数"] + 1)
+          .setValue(currentWins + (isWinner ? 1 : 0));
+        playerSheet.getRange(rowNum, indices["敗数"] + 1)
+          .setValue(currentLosses + (isWinner ? 0 : 1));
+        playerSheet.getRange(rowNum, indices["消化試合数"] + 1)
+          .setValue(currentTotal + 1);
+        playerSheet.getRange(rowNum, indices["最終対戦日時"] + 1)
+          .setValue(timestamp);
 
-      const currentWins = parseInt(row[winCol]) || 0;
-      const currentLosses = parseInt(row[lossCol]) || 0;
-      const currentTotal = parseInt(row[totalCol]) || 0;
-
-      playerSheet.getRange(rowNum, winCol + 1).setValue(currentWins + (isWinner ? 1 : 0));
-      playerSheet.getRange(rowNum, lossCol + 1).setValue(currentLosses + (isWinner ? 0 : 1));
-      playerSheet.getRange(rowNum, totalCol + 1).setValue(currentTotal + 1);
-
-      // 最終対戦日時を更新
-      playerSheet.getRange(rowNum, lastPlayedCol + 1).setValue(timestamp);
-
-      return;
+        return;
+      }
     }
+    Logger.log(`エラー: プレイヤーID ${playerId} が見つかりません。`);
+  } catch (e) {
+    Logger.log("updatePlayerStats エラー: " + e.message);
   }
-  Logger.log(`エラー: プレイヤーID ${playerId} が見つかりません。`);
 }
 
 // ----------------------------------------------------------------------
@@ -470,28 +500,27 @@ function registerPlayer() {
   const playerSheet = ss.getSheetByName(SHEET_PLAYERS);
   const ui = SpreadsheetApp.getUi();
 
-  if (!playerSheet) {
-    ui.alert("先に `setupSheets` を実行してシートを初期化してください。");
-    return;
-  }
+  try {
+    validateHeaders(playerSheet, SHEET_PLAYERS);
 
-  const lastRow = playerSheet.getLastRow();
-  const newIdNumber = lastRow;
-  const newId = PLAYER_ID_PREFIX + Utilities.formatString(`%0${ID_DIGITS}d`, newIdNumber);
+    const lastRow = playerSheet.getLastRow();
+    const newIdNumber = lastRow;
+    const newId = PLAYER_ID_PREFIX + Utilities.formatString(`%0${ID_DIGITS}d`, newIdNumber);
+    const currentTime = new Date();
 
-  const currentTime = new Date();
-  // 新規プレイヤーは初期時点で最終対戦日時 = 現在時刻とする
-  playerSheet.appendRow([newId, 0, 0, 0, "待機", currentTime]);
+    playerSheet.appendRow([newId, 0, 0, 0, "待機", currentTime]);
+    Logger.log(`プレイヤー ${newId} を登録しました。`);
 
-  Logger.log(`プレイヤー ${newId} を登録しました。`);
-
-  // ★★★ 追記: プレイヤー登録後の自動マッチング ★★★
-  const waitingPlayersCount = getWaitingPlayers().length;
-  if (waitingPlayersCount >= 2) {
-    Logger.log(`プレイヤー登録後、待機プレイヤーが ${waitingPlayersCount} 人いるため、自動でマッチングを開始します。`);
-    matchPlayers();
-  } else {
-    Logger.log(`プレイヤー登録後、待機プレイヤーが ${waitingPlayersCount} 人です。自動マッチングはスキップされました。`);
+    const waitingPlayersCount = getWaitingPlayers().length;
+    if (waitingPlayersCount >= 2) {
+      Logger.log(`プレイヤー登録後、待機プレイヤーが ${waitingPlayersCount} 人いるため、自動でマッチングを開始します。`);
+      matchPlayers();
+    } else {
+      Logger.log(`プレイヤー登録後、待機プレイヤーが ${waitingPlayersCount} 人です。自動マッチングはスキップされました。`);
+    }
+  } catch (e) {
+    ui.alert("エラーが発生しました: " + e.toString());
+    Logger.log("registerPlayer エラー: " + e.toString());
   }
 }
 
