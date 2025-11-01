@@ -84,7 +84,10 @@ function dropoutPlayer() {
   }
 
   try {
-    lock = acquireLock('プレイヤーのドロップアウト');
+    // プレイヤー状態の変更とマッチングに関わる処理なので、両方のロックを取得
+    lock = acquireLock('プレイヤー状態変更');
+    const matchLock = acquireLock('対戦結果の記録');
+
     const playerSheet = ss.getSheetByName(SHEET_PLAYERS);
     const { indices: playerIndices, data: playerData } = validateHeaders(playerSheet, SHEET_PLAYERS);
     
@@ -153,6 +156,7 @@ function dropoutPlayer() {
     ui.alert("エラーが発生しました: " + e.toString());
     Logger.log("handleDropout エラー: " + e.toString());
   } finally {
+    releaseLock(matchLock);
     releaseLock(lock);
   }
 }
