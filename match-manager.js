@@ -65,8 +65,8 @@ function matchPlayers() {
 
     // マッチング結果の反映
     if (matches.length > 0) {
+      // プレイヤーの状態を更新
       const playerIdsToUpdate = matches.flat();
-      
       for (let i = 1; i < playerData.length; i++) {
         const row = playerData[i];
         const playerId = row[playerIndices["プレイヤーID"]];
@@ -76,16 +76,73 @@ function matchPlayers() {
         }
       }
 
-      const lastRow = inProgressSheet.getLastRow();
-      if (matches.length > 0) {
-        const matchesWithNames = matches.map(match => [
-          match[0],
-          getPlayerName(match[0]),
-          match[1],
-          getPlayerName(match[1])
-        ]);
-        inProgressSheet.getRange(lastRow + 1, 1, matches.length, 4)
-          .setValues(matchesWithNames);
+      // マッチングシートの現在の状態を取得
+      const { indices: matchIndices, data: matchData } = getSheetStructure(inProgressSheet, SHEET_IN_PROGRESS);
+      
+      // 既存の卓の状態を確認
+      const availableTables = [];
+      const usedTables = new Set();
+      
+      for (let i = 1; i < matchData.length; i++) {
+        const row = matchData[i];
+        const tableNumber = row[matchIndices["卓番号"]];
+        if (!tableNumber) continue;
+        
+        if (!row[matchIndices["ID1"]]) {
+          // 空いている卓
+          availableTables.push({ row: i, tableNumber: tableNumber });
+        } else {
+          usedTables.add(tableNumber);
+        }
+      }
+
+      // マッチを卓に割り当て
+      for (const match of matches) {
+        const [p1Id, p2Id] = match;
+        let targetRow = null;
+        let tableNumber = null;
+
+        // 勝者の前回使用した卓を確認
+        const lastTable = getLastTableNumber(p1Id);
+        if (lastTable) {
+          const validation = validateTableNumber(lastTable);
+          if (validation.isValid && !usedTables.has(lastTable)) {
+            // 前回の卓が有効で空いている場合、その卓を使用
+            const availableTableIndex = availableTables.findIndex(t => t.tableNumber === lastTable);
+            if (availableTableIndex !== -1) {
+              const table = availableTables.splice(availableTableIndex, 1)[0];
+              targetRow = table.row;
+              tableNumber = table.tableNumber;
+              usedTables.add(tableNumber);
+            }
+          }
+        }
+
+        // 前回の卓が使えない場合は新しい卓を割り当て
+        if (targetRow === null) {
+          if (availableTables.length > 0) {
+            // 既存の空き卓から割り当て
+            const table = availableTables.shift();
+            targetRow = table.row;
+            tableNumber = table.tableNumber;
+          } else {
+            // 新しい卓を作成
+            const newTableNumber = getNextAvailableTableNumber(inProgressSheet);
+            tableNumber = newTableNumber;
+            targetRow = matchData.length;
+            // 新しい卓番号を設定
+            inProgressSheet.getRange(targetRow + 1, 1).setValue(tableNumber);
+          }
+          usedTables.add(tableNumber);
+        }
+
+        // マッチを卓に割り当て
+        inProgressSheet.getRange(targetRow + 1, 2, 1, 4).setValues([[
+          p1Id,
+          getPlayerName(p1Id),
+          p2Id,
+          getPlayerName(p2Id)
+        ]]);
       }
 
       Logger.log(`マッチングが ${matches.length} 件成立しました。「${SHEET_IN_PROGRESS}」シートを確認してください。`);
