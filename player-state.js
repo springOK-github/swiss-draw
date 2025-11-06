@@ -125,14 +125,8 @@ function updatePlayerState(options) {
       const winnerName = getPlayerName(winner);
       const loserName = getPlayerName(loser);
 
-      // マッチング中の卓番号を取得
-      const inProgressSheet = ss.getSheetByName(SHEET_IN_PROGRESS);
-      const { indices: matchIndices } = getSheetStructure(inProgressSheet, SHEET_IN_PROGRESS);
-      const matchTableNumber = inProgressSheet.getRange(matchRow, 1).getValue();
-
       historySheet.appendRow([
         formattedTime,
-        matchTableNumber,
         winner,
         winnerName,
         loser,
@@ -145,10 +139,10 @@ function updatePlayerState(options) {
       updatePlayerMatchStats(loser, false, formattedTime);
     }
 
-    // 5. 対戦情報をクリア（対戦中の場合のみ）。卓番号は残す
+    // 5. 対戦中リストから削除（対戦中の場合のみ）
     if (currentStatus === PLAYER_STATUS.IN_PROGRESS && matchRow !== -1) {
       const inProgressSheet = ss.getSheetByName(SHEET_IN_PROGRESS);
-      inProgressSheet.getRange(matchRow, 2, 1, 4).clearContent(); // ID1からID2までをクリア
+      inProgressSheet.getRange(matchRow, 1, 1, 2).clearContent();
     }
 
     // 6. プレイヤーの状態を更新
