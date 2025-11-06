@@ -65,35 +65,84 @@ function getPlayerName(playerId) {
 }
 
 /**
- * 「マッチング」シート内の空行（対戦が終了し、コンテンツがクリアされた行）を削除し、
- * シート内のデータを上詰めして整理します。
+ * 「マッチング」シート内の空行の処理。
+ * 卓番号制の導入により、空行は削除せず維持します。
  */
 function cleanUpInProgressSheet() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const inProgressSheet = ss.getSheetByName(SHEET_IN_PROGRESS);
+  // 卓番号制の導入により、意図的に何もしない
+  Logger.log("卓番号制により、マッチングシートの行は維持されます。");
+}
 
-  try {
-    getSheetStructure(inProgressSheet, SHEET_IN_PROGRESS);
-
-    const lastRow = inProgressSheet.getLastRow();
-    if (lastRow <= 1) {
-      Logger.log(`「${SHEET_IN_PROGRESS}」シートにデータがないため、整理は不要です。`);
-      return;
-    }
-
-    let deletedCount = 0;
-    for (let i = lastRow; i >= 2; i--) {
-      const cellA = inProgressSheet.getRange(i, 1).getValue();
-      if (cellA === "") {
-        inProgressSheet.deleteRow(i);
-        deletedCount++;
-      }
-    }
-
-    if (deletedCount > 0) {
-      Logger.log(`「${SHEET_IN_PROGRESS}」シートの整理 (自動実行) が完了しました。${deletedCount} 行の空行を削除しました。`);
-    }
-  } catch (e) {
-    Logger.log("cleanUpInProgressSheet エラー: " + e.message);
+/**
+ * 卓番号が有効かどうかを検証します
+ * @param {number} tableNumber 検証する卓番号
+ * @returns {{isValid: boolean, message: string}} 検証結果とメッセージ
+ */
+function validateTableNumber(tableNumber) {
+  if (!Number.isInteger(tableNumber)) {
+    return { isValid: false, message: "卓番号は整数である必要があります。" };
   }
+  
+  if (tableNumber < TABLE_CONFIG.MIN_TABLE_NUMBER) {
+    return { isValid: false, message: `卓番号は${TABLE_CONFIG.MIN_TABLE_NUMBER}以上である必要があります。` };
+  }
+  
+  if (tableNumber > TABLE_CONFIG.MAX_TABLES) {
+    return { isValid: false, message: `卓番号は${TABLE_CONFIG.MAX_TABLES}以下である必要があります。` };
+  }
+  
+  return { isValid: true, message: "有効な卓番号です。" };
+}
+
+/**
+ * 使用可能な次の卓番号を取得します
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} inProgressSheet マッチングシート
+ * @returns {number} 使用可能な次の卓番号
+ */
+function getNextAvailableTableNumber(inProgressSheet) {
+  const { indices, data } = getSheetStructure(inProgressSheet, SHEET_IN_PROGRESS);
+  const usedNumbers = new Set();
+  
+  // 現在使用中の卓番号を収集
+  for (let i = 1; i < data.length; i++) {
+    const tableNumber = data[i][indices["卓番号"]];
+    if (tableNumber) {
+      usedNumbers.add(tableNumber);
+    }
+  }
+  
+  // 1から順に空いている番号を探す
+  for (let i = TABLE_CONFIG.MIN_TABLE_NUMBER; i <= TABLE_CONFIG.MAX_TABLES; i++) {
+    if (!usedNumbers.has(i)) {
+      return i;
+    }
+  }
+  
+  throw new Error(`使用可能な卓番号がありません。最大${TABLE_CONFIG.MAX_TABLES}卓まで設定可能です。`);
+}
+
+/**
+ * プレイヤーが前回使用した卓番号を取得します
+ * @param {string} playerId プレイヤーID
+ * @returns {number|null} 卓番号。見つからない場合はnull
+ */
+function getLastTableNumber(playerId) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const historySheet = ss.getSheetByName(SHEET_HISTORY);
+  const { indices: historyIndices, data: historyData } = getSheetStructure(historySheet, SHEET_HISTORY);
+  
+  // 最新の対戦履歴を探す
+  for (let i = historyData.length - 1; i > 0; i--) {
+    const row = historyData[i];
+    const id1 = row[historyIndices["ID1"]];
+    const id2 = row[historyIndices["ID2"]];
+    const winner = row[historyIndices["勝者名"]];
+    const tableNumber = row[historyIndices["卓番号"]];
+    
+    // 勝者のプレイヤー名から勝者IDを特定
+    if (getPlayerName(playerId) === winner && (id1 === playerId || id2 === playerId)) {
+      return tableNumber;
+    }
+  }
+  return null;
 }
