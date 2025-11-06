@@ -78,8 +78,14 @@ function matchPlayers() {
 
       const lastRow = inProgressSheet.getLastRow();
       if (matches.length > 0) {
-        inProgressSheet.getRange(lastRow + 1, 1, matches.length, 2)
-          .setValues(matches);
+        const matchesWithNames = matches.map(match => [
+          match[0],
+          getPlayerName(match[0]),
+          match[1],
+          getPlayerName(match[1])
+        ]);
+        inProgressSheet.getRange(lastRow + 1, 1, matches.length, 4)
+          .setValues(matchesWithNames);
       }
 
       Logger.log(`マッチングが ${matches.length} 件成立しました。「${SHEET_IN_PROGRESS}」シートを確認してください。`);

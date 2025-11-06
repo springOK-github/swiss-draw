@@ -122,11 +122,15 @@ function updatePlayerState(options) {
 
       const winner = isTargetWinner ? targetPlayerId : opponentId;
       const loser = isTargetWinner ? opponentId : targetPlayerId;
+      const winnerName = getPlayerName(winner);
+      const loserName = getPlayerName(loser);
 
       historySheet.appendRow([
         formattedTime,
         winner,
+        winnerName,
         loser,
+        loserName,
         winner,
         newId
       ]);
