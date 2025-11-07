@@ -150,7 +150,6 @@ function returnPlayerFromResting() {
     playerSheet.getRange(targetRowIndex, indices["参加状況"] + 1)
       .setValue(PLAYER_STATUS.WAITING);
 
-    ui.alert('完了', `プレイヤー ${playerId} を待機状態に復帰させました。`, ui.ButtonSet.OK);
 
     // 待機者が2人以上いれば自動マッチング
     const waitingPlayersCount = getWaitingPlayers().length;

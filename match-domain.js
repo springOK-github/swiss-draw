@@ -382,14 +382,6 @@ function correctMatchResult() {
       }
     }
 
-    ui.alert(
-      '修正完了',
-      `対戦ID ${matchId} の勝敗を修正しました。\n\n` +
-      `新しい勝者: ${currentLoserName} (${currentLoserId})\n` +
-      `新しい敗者: ${currentWinnerName} (${currentWinnerId})`,
-      ui.ButtonSet.OK
-    );
-
     Logger.log(`対戦結果修正完了: ${matchId}, 新勝者: ${currentLoserId}, 新敗者: ${currentWinnerId}`);
 
   } catch (e) {
