@@ -45,13 +45,18 @@ Google Apps Script (GAS) とスプレッドシートで動作するポケモン�
 ## ファイル構成
 
 - `constants.js`: システム全体で使用する定数の定義
-- `setup.js`: スプレッドシートの初期設定とメニュー関連
+- `setup.js`: スプレッドシートの初期設定とカスタムメニュー
+- `config.js`: システム設定の管理（最大卓数など）
 - `match-manager.js`: マッチングと対戦結果記録のメインロジック
-- `player-manager.js`: プレイヤーのライフサイクル管理（登録・状態管理・統計）
+- `player-operations.js`: プレイヤーのUI操作（登録・休憩・復帰・ドロップアウト）
+- `player-queries.js`: プレイヤーデータの取得と検索
+- `player-stats.js`: プレイヤー統計の更新処理
 - `player-state.js`: プレイヤーの状態遷移に関する共通処理
+- `ui-utils.js`: UI操作の共通ユーティリティ
 - `sheet-utils.js`: スプレッドシート操作のユーティリティ
 - `lock-utils.js`: 排他制御（複数ユーザーの同時操作防止）
 - `test-utils.js`: テスト用のユーティリティ関数
+- `README.js`: README自動生成用スクリプト
 
 ## セットアップ方法
 
