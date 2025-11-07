@@ -6,17 +6,31 @@ Google Apps Script (GAS) ベースのポケモンカードバトル大会マッ�
 
 ### コアコンポーネント
 
-- **constants.js**: システム全体の定数定義（シート名、ステータス、卓設定）
-- **setup.js**: 初期化とカスタムメニュー（`onOpen()` トリガー）
-- **config.js**: システム設定の管理（最大卓数の取得・設定）
-- **match-manager.js**: マッチングロジックと対戦結果記録
-- **player-operations.js**: プレイヤーのUI操作（登録・休憩・復帰・ドロップアウト）
-- **player-queries.js**: プレイヤーデータの取得と検索
-- **player-stats.js**: プレイヤー統計の更新処理
-- **player-state.js**: 状態遷移の共通処理（`updatePlayerState()` が中核）
-- **ui-utils.js**: UI操作の共通ユーティリティ
-- **sheet-utils.js**: スプレッドシート操作の抽象化
-- **lock-utils.js**: 排他制御（`acquireLock()` / `releaseLock()`）
+#### ドメイン層
+- **player-domain.js**: プレイヤードメイン
+  - プレイヤー操作: 登録・休憩・復帰・ドロップアウト
+  - データ取得・検索: 待機者リスト、過去対戦相手、プレイヤー名取得
+  - 統計更新: 勝敗数・消化試合数の更新
+  - 状態遷移: `updatePlayerState()` による一元管理
+  
+- **match-domain.js**: 対戦ドメイン
+  - マッチング管理: `matchPlayers()` - 再戦回避、勝者優先
+  - 対戦結果記録: `recordResult()` - 履歴記録、統計更新
+  - 対戦結果修正: `correctMatchResult()` - 誤記録の修正
+
+#### 共通層
+- **shared.js**: 共有ユーティリティ
+  - シート操作: `getSheetStructure()`, `getPlayerName()`, 卓番号管理
+  - UI共通処理: `promptPlayerId()`, `changePlayerStatus()`
+
+#### アプリケーション層
+- **app.js**: アプリケーション層
+  - システム初期化: `onOpen()` - カスタムメニュー、`setupSheets()` - シート作成
+  - システム設定: `getMaxTables()`, `setMaxTables()` - 最大卓数管理
+  - 排他制御: `acquireLock()`, `releaseLock()` - 同時操作防止
+
+#### その他
+- **constants.js**: システム定数（シート名、ステータス、卓設定）
 - **test-utils.js**: テストデータ生成
 
 ### 3つのシート構造
