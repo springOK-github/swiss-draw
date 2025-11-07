@@ -79,6 +79,8 @@ function cleanUpInProgressSheet() {
  * @returns {{isValid: boolean, message: string}} 検証結果とメッセージ
  */
 function validateTableNumber(tableNumber) {
+  const maxTables = getMaxTables(); // 動的に取得
+  
   if (!Number.isInteger(tableNumber)) {
     return { isValid: false, message: "卓番号は整数である必要があります。" };
   }
@@ -87,8 +89,8 @@ function validateTableNumber(tableNumber) {
     return { isValid: false, message: `卓番号は${TABLE_CONFIG.MIN_TABLE_NUMBER}以上である必要があります。` };
   }
   
-  if (tableNumber > TABLE_CONFIG.MAX_TABLES) {
-    return { isValid: false, message: `卓番号は${TABLE_CONFIG.MAX_TABLES}以下である必要があります。` };
+  if (tableNumber > maxTables) {
+    return { isValid: false, message: `卓番号は${maxTables}以下である必要があります。` };
   }
   
   return { isValid: true, message: "有効な卓番号です。" };
@@ -101,6 +103,7 @@ function validateTableNumber(tableNumber) {
  */
 function getNextAvailableTableNumber(inProgressSheet) {
   const { indices, data } = getSheetStructure(inProgressSheet, SHEET_IN_PROGRESS);
+  const maxTables = getMaxTables();
   const usedNumbers = new Set();
   
   // 現在使用中の卓番号を収集
@@ -112,13 +115,13 @@ function getNextAvailableTableNumber(inProgressSheet) {
   }
   
   // 1から順に空いている番号を探す
-  for (let i = TABLE_CONFIG.MIN_TABLE_NUMBER; i <= TABLE_CONFIG.MAX_TABLES; i++) {
+  for (let i = TABLE_CONFIG.MIN_TABLE_NUMBER; i <= maxTables; i++) {
     if (!usedNumbers.has(i)) {
       return i;
     }
   }
   
-  throw new Error(`使用可能な卓番号がありません。最大${TABLE_CONFIG.MAX_TABLES}卓まで設定可能です。`);
+  throw new Error(`使用可能な卓番号がありません。最大${maxTables}卓まで設定可能です。`);
 }
 
 /**

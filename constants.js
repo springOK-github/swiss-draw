@@ -17,7 +17,7 @@ const PLAYER_STATUS = {
 };
 // 卓に関する設定
 const TABLE_CONFIG = {
-  MAX_TABLES: 50,      // 最大卓数
+  MAX_TABLES: 50,      // デフォルトの最大卓数（PropertiesServiceで上書き可能、範囲: 1-200）
   MIN_TABLE_NUMBER: 1  // 最小卓番号
 };
 
