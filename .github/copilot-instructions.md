@@ -126,7 +126,7 @@ clasp push
 
 - プレイヤーID: `P` + 3桁数字（例: `P001`）- `ID_DIGITS` 定数で制御
 - 対戦ID: `T` + 4桁数字（例: `T0001`）
-- 卓番号: 1～50（`TABLE_CONFIG.MAX_TABLES` で制御）
+- 卓番号: 1～200（`getMaxTables()` で動的取得、デフォルト: 50）
 
 ### UI 入力規則
 
