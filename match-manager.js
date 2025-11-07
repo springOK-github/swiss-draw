@@ -1,6 +1,6 @@
 /**
  * ポケモンカード・ガンスリンガーバトル用マッチングシステム
- * @fileoverview マッチングの管理と対戦結果の記録を行うマネージャー
+ * @fileoverview マッチングの管理を行うマネージャー
  * @author SpringOK
  */
 
@@ -78,16 +78,16 @@ function matchPlayers() {
 
       // マッチングシートの現在の状態を取得
       const { indices: matchIndices, data: matchData } = getSheetStructure(inProgressSheet, SHEET_IN_PROGRESS);
-      
+
       // 既存の卓の状態を確認
       const availableTables = [];
       const usedTables = new Set();
-      
+
       for (let i = 1; i < matchData.length; i++) {
         const row = matchData[i];
         const tableNumber = row[matchIndices["卓番号"]];
         if (!tableNumber) continue;
-        
+
         if (!row[matchIndices["ID1"]]) {
           // 空いている卓
           availableTables.push({ row: i, tableNumber: tableNumber });
@@ -158,112 +158,4 @@ function matchPlayers() {
   } finally {
     releaseLock(lock);
   }
-}
-
-// =========================================
-// 対戦結果系
-// =========================================
-
-/**
- * カスタムメニューから実行するためのラッパー関数。
- */
-function promptAndRecordResult() {
-  const ui = SpreadsheetApp.getUi();
-
-  // 最初にユーザー入力を受け付け
-  const winnerResponse = ui.prompt(
-    '対戦結果の記録',
-    `勝者のプレイヤーIDの**数字部分のみ**を入力してください (例: P001なら「1」)。`,
-    ui.ButtonSet.OK_CANCEL
-  );
-
-  if (winnerResponse.getSelectedButton() !== ui.Button.OK) {
-    ui.alert('処理をキャンセルしました。');
-    return;
-  }
-
-  const rawId = winnerResponse.getResponseText().trim();
-
-  if (!/^\d+$/.test(rawId)) {
-    ui.alert('エラー: IDは数字のみで入力してください。');
-    return;
-  }
-
-  const formattedWinnerId = PLAYER_ID_PREFIX + Utilities.formatString(`%0${ID_DIGITS}d`, parseInt(rawId, 10));
-
-  // この時点でロックは取得しない
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const inProgressSheet = ss.getSheetByName(SHEET_IN_PROGRESS);
-  const { indices, data } = getSheetStructure(inProgressSheet, SHEET_IN_PROGRESS);
-  let loserId = null;
-
-  // 対戦相手の確認（ロック不要）
-  for (let i = 1; i < data.length; i++) {
-    const row = data[i];
-    const p1 = row[indices["ID1"]];
-    const p2 = row[indices["ID2"]];
-
-    if (p1 === formattedWinnerId) {
-      loserId = p2;
-      break;
-    } else if (p2 === formattedWinnerId) {
-      loserId = p1;
-      break;
-    }
-  }
-
-  if (loserId === null) {
-    ui.alert(`エラー: 勝者ID (${formattedWinnerId}) は「${SHEET_IN_PROGRESS}」シートに見つかりませんでした。\n入力IDが間違っているか、対戦が記録されていません。`);
-    return;
-  }
-
-  // ユーザーに確認
-  const confirmResponse = ui.alert(
-    '対戦結果の確認',
-    `以下の内容で記録してよろしいですか？\n\n` +
-    `勝者: ${getPlayerName(formattedWinnerId)}\n` +
-    `敗者: ${getPlayerName(loserId)}`,
-    ui.ButtonSet.YES_NO
-  );
-
-  if (confirmResponse !== ui.Button.YES) {
-    ui.alert('処理をキャンセルしました。');
-    return;
-  }
-
-  try {
-    // recordResult内でロックを取得するため、ここではロック不要
-    recordResult(formattedWinnerId);
-  } catch (e) {
-    ui.alert("エラーが発生しました: " + e.toString());
-    Logger.log("promptAndRecordResult エラー: " + e.toString());
-  }
-}
-
-/**
- * 対戦結果を記録し、プレイヤーの統計情報とステータスを更新し、自動で次をマッチングします。
- */
-function recordResult(winnerId) {
-  const ui = SpreadsheetApp.getUi();
-
-  if (!winnerId) {
-    ui.alert("勝者IDを入力してください。");
-    return;
-  }
-
-  // 共通処理を呼び出し
-  const result = updatePlayerState({
-    targetPlayerId: winnerId,
-    newStatus: PLAYER_STATUS.WAITING,
-    opponentNewStatus: PLAYER_STATUS.WAITING,
-    recordResult: true,
-    isTargetWinner: true
-  });
-
-  if (!result.success) {
-    ui.alert('エラー', result.message, ui.ButtonSet.OK);
-    return;
-  }
-
-  Logger.log(`対戦結果が記録されました。勝者: ${winnerId}, 敗者: ${result.opponentId}。両プレイヤーは待機状態に戻りました。`);
 }
