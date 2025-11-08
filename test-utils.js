@@ -21,7 +21,7 @@ function registerTestPlayers() {
 
   try {
     lock = acquireLock('テストプレイヤー登録');
-    const { indices } = getSheetStructure(playerSheet, SHEET_PLAYERS);
+    const { indices, data } = getSheetStructure(playerSheet, SHEET_PLAYERS);
 
     // 既存の最大ID番号を取得（本物のregisterPlayer()と同じロジック）
     let maxIdNumber = 0;
@@ -43,15 +43,14 @@ function registerTestPlayers() {
       const newId = PLAYER_ID_PREFIX + Utilities.formatString(`%0${ID_DIGITS}d`, newIdNumber);
       const playerName = newId;  // 名前はIDと同じ
       const currentTime = new Date();
-      const formattedTime = Utilities.formatDate(currentTime, 'Asia/Tokyo', DATETIME_FORMAT);
+      const formattedTime = Utilities.formatDate(currentTime, 'Asia/Tokyo', 'yyyy/MM/dd HH:mm:ss');
 
       playerSheet.appendRow([newId, playerName, 0, 0, 0, PLAYER_STATUS.WAITING, formattedTime]);
       Logger.log(`プレイヤー ${playerName} (${newId}) を登録しました。`);
     }
 
     // 自動マッチング
-    // 既存データから待機プレイヤー数を直接計算（シート再アクセス不要）
-    const waitingPlayersCount = data.slice(1).filter(row => row[indices["参加状況"]] === PLAYER_STATUS.WAITING).length;
+    const waitingPlayersCount = getWaitingPlayers().length;
     if (waitingPlayersCount >= 2) {
       Logger.log(`テストプレイヤー登録完了。待機プレイヤーが ${waitingPlayersCount} 人いるため、自動でマッチングを開始します。`);
       matchPlayers();
