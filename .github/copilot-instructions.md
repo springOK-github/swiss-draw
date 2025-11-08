@@ -181,7 +181,7 @@ const playerId = PLAYER_ID_PREFIX +
 3. **状態遷移は `updatePlayerState()` 経由**: 直接シート更新しない
 4. **カスタムメニュー関数はロック管理不要**: 内部の実処理関数でロック取得
 5. **数値の型変換**: `parseInt()` 使用時は必ず基数 `10` を指定
-6. **パフォーマンス最適化の維持**: `matchPlayers()` は Map/Set キャッシュで最適化済み、旧ヘルパー関数（`getPastOpponents`, `getWaitingPlayers`）は使用しない
+6. **パフォーマンス最適化の維持**: `matchPlayers()` は Map/Set キャッシュで最適化済み、旧ヘルパー関数（`getPastOpponents`, `getWaitingPlayers`）は`matchPlayers()`内では使用禁止。他の用途（例: プレイヤー検索・統計取得等）では引き続き利用可能です。現時点で他の呼び出し箇所のリファクタリング予定はありません。
 
 ## 外部依存関係
 
