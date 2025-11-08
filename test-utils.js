@@ -50,7 +50,8 @@ function registerTestPlayers() {
     }
 
     // 自動マッチング
-    const waitingPlayersCount = getWaitingPlayers().length;
+    // 既存データから待機プレイヤー数を直接計算（シート再アクセス不要）
+    const waitingPlayersCount = data.slice(1).filter(row => row[indices["参加状況"]] === PLAYER_STATUS.WAITING).length;
     if (waitingPlayersCount >= 2) {
       Logger.log(`テストプレイヤー登録完了。待機プレイヤーが ${waitingPlayersCount} 人いるため、自動でマッチングを開始します。`);
       matchPlayers();
