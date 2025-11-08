@@ -21,7 +21,7 @@ function registerTestPlayers() {
 
   try {
     lock = acquireLock('テストプレイヤー登録');
-    const { indices, data } = getSheetStructure(playerSheet, SHEET_PLAYERS);
+    const { indices } = getSheetStructure(playerSheet, SHEET_PLAYERS);
 
     // 既存の最大ID番号を取得（本物のregisterPlayer()と同じロジック）
     let maxIdNumber = 0;
