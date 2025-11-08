@@ -49,6 +49,9 @@ function matchPlayers() {
       const p1 = row[p1Col];
       const p2 = row[p2Col];
 
+      // 空または null の ID をスキップ
+      if (!p1 || !p2) continue;
+
       if (!opponentsMap.has(p1)) opponentsMap.set(p1, new Set());
       if (!opponentsMap.has(p2)) opponentsMap.set(p2, new Set());
 
