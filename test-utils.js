@@ -43,7 +43,7 @@ function registerTestPlayers() {
       const newId = PLAYER_ID_PREFIX + Utilities.formatString(`%0${ID_DIGITS}d`, newIdNumber);
       const playerName = newId;  // 名前はIDと同じ
       const currentTime = new Date();
-      const formattedTime = Utilities.formatDate(currentTime, 'Asia/Tokyo', 'yyyy/MM/dd HH:mm:ss');
+      const formattedTime = Utilities.formatDate(currentTime, 'Asia/Tokyo', DATETIME_FORMAT);
 
       playerSheet.appendRow([newId, playerName, 0, 0, 0, PLAYER_STATUS.WAITING, formattedTime]);
       Logger.log(`プレイヤー ${playerName} (${newId}) を登録しました。`);
