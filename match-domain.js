@@ -11,7 +11,6 @@
 /**
  * 待機中のプレイヤーを抽出し、再戦履歴を厳格に考慮してマッチングを行います。
  * 過去に対戦した相手しかいない場合、マッチングを成立させずに待機させます。
- * 【最適化】対戦履歴とプレイヤー名を事前に一括取得してキャッシュ
  */
 function matchPlayers() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -21,7 +20,6 @@ function matchPlayers() {
   try {
     lock = acquireLock('マッチング実行');
 
-    // 【最適化1】全データを一度に取得
     const playerSheet = ss.getSheetByName(SHEET_PLAYERS);
     const historySheet = ss.getSheetByName(SHEET_HISTORY);
 
@@ -29,7 +27,6 @@ function matchPlayers() {
     const { indices: historyIndices, data: historyData } = getSheetStructure(historySheet, SHEET_HISTORY);
     const { indices: matchIndices, data: matchData } = getSheetStructure(inProgressSheet, SHEET_IN_PROGRESS);
 
-    // 【最適化2】プレイヤー名マップを事前構築
     const playerNameMap = new Map();
     for (let i = 1; i < playerData.length; i++) {
       const row = playerData[i];
@@ -39,7 +36,6 @@ function matchPlayers() {
       playerNameMap.set(playerId, playerName);
     }
 
-    // 【最適化3】対戦履歴を一度に全プレイヤー分構築
     const opponentsMap = new Map();
     const p1Col = historyIndices["ID1"];
     const p2Col = historyIndices["ID2"];
@@ -59,12 +55,23 @@ function matchPlayers() {
       opponentsMap.get(p2).add(p1);
     }
 
-    // 待機プレイヤーを取得（playerDataから直接抽出）
-    const waitingPlayers = playerData.filter((row, idx) => {
-      // ヘッダー行は除外
-      if (idx === 0) return false;
-      return row[playerIndices["参加状況"]] === PLAYER_STATUS.WAITING;
-    });
+    // 待機プレイヤーを取得（playerDataから直接抽出してソート）
+    const waitingPlayers = playerData
+      .slice(1)  // ヘッダー行を除外
+      .filter(row => row[playerIndices["参加状況"]] === PLAYER_STATUS.WAITING)
+      .sort((a, b) => {
+        // 勝数が多い順（降順）
+        const winsDiff = b[playerIndices["勝数"]] - a[playerIndices["勝数"]];
+        if (winsDiff !== 0) return winsDiff;
+
+        // 勝数が同じ場合は、登録/最終対戦が古い順（昇順 = 先着順）
+        const dateA = a[playerIndices["最終対戦日時"]] instanceof Date ?
+          a[playerIndices["最終対戦日時"]].getTime() : 0;
+        const dateB = b[playerIndices["最終対戦日時"]] instanceof Date ?
+          b[playerIndices["最終対戦日時"]].getTime() : 0;
+        return dateA - dateB;
+      });
+
     if (waitingPlayers.length < 2) {
       Logger.log(`警告: 現在待機中のプレイヤーは ${waitingPlayers.length} 人です。2人以上必要です。`);
       return;
@@ -76,7 +83,6 @@ function matchPlayers() {
 
     Logger.log("--- 厳格な再戦回避マッチング開始 (勝者優先) ---");
 
-    // 【最適化4】ブラックリストをマップから高速取得
     while (availablePlayers.length >= 2) {
       const p1 = availablePlayers.shift();
       const p1Id = p1[playerIndices["プレイヤーID"]];
@@ -145,19 +151,21 @@ function matchPlayers() {
         }
       }
 
-      // 【最適化5】プレイヤー状態を一括更新
       const playerIdsToUpdate = new Set(actualMatches.flat());
+
+      // 更新対象を収集
       for (let i = 1; i < playerData.length; i++) {
         const row = playerData[i];
         const playerId = row[playerIndices["プレイヤーID"]];
         if (playerIdsToUpdate.has(playerId)) {
+          // 個別にsetValueを呼ぶ（GASの制約により一括更新が難しい）
           playerSheet.getRange(i + 1, playerIndices["参加状況"] + 1)
             .setValue(PLAYER_STATUS.IN_PROGRESS);
         }
       }
 
-      // マッチを卓に割り当て
       let nextNewRow = matchData.length;
+
       for (const match of actualMatches) {
         const [p1Id, p2Id] = match;
         let targetRow = null;
@@ -188,12 +196,12 @@ function matchPlayers() {
             tableNumber = newTableNumber;
             targetRow = nextNewRow;
             nextNewRow++;
-            inProgressSheet.getRange(targetRow + 1, 1).setValue(tableNumber);
+            // 新規卓番号を設定
+            inProgressSheet.getRange(targetRow + 1, 1).setValue(newTableNumber);
           }
           usedTables.add(tableNumber);
         }
 
-        // 【最適化6】プレイヤー名をキャッシュから取得
         inProgressSheet.getRange(targetRow + 1, 2, 1, 4).setValues([[
           p1Id,
           playerNameMap.get(p1Id) || p1Id,
