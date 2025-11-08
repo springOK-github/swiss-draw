@@ -72,11 +72,6 @@ function getPlayerName(playerId) {
  * 「マッチング」シート内の空行の処理。
  * 卓番号制の導入により、空行は削除せず維持します。
  */
-function cleanUpInProgressSheet() {
-  // 卓番号制の導入により、意図的に何もしない
-  Logger.log("卓番号制により、マッチングシートの行は維持されます。");
-}
-
 /**
  * 卓番号が有効かどうかを検証します
  * @param {number} tableNumber 検証する卓番号

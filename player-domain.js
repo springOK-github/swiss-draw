@@ -230,36 +230,6 @@ function getWaitingPlayers() {
   }
 }
 
-/**
- * 特定プレイヤーの過去の対戦相手のIDリスト（ブラックリスト）を取得します。
- */
-function getPastOpponents(playerId) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const historySheet = ss.getSheetByName(SHEET_HISTORY);
-
-  try {
-    const { indices, data } = getSheetStructure(historySheet, SHEET_HISTORY);
-    if (data.length <= 1) return [];
-
-    const p1Col = indices["ID1"];
-    const p2Col = indices["ID2"];
-    const opponents = new Set();
-
-    data.slice(1).forEach(row => {
-      if (row[p1Col] === playerId) {
-        opponents.add(row[p2Col]);
-      } else if (row[p2Col] === playerId) {
-        opponents.add(row[p1Col]);
-      }
-    });
-
-    return Array.from(opponents);
-  } catch (e) {
-    Logger.log("getPastOpponents エラー: " + e.message);
-    return [];
-  }
-}
-
 // =========================================
 // プレイヤー統計更新
 // =========================================
@@ -454,10 +424,7 @@ function updatePlayerState(options) {
       }
     }
 
-    // 7. シートのクリーンアップ
-    cleanUpInProgressSheet();
-
-    // 8. 必要に応じて次のマッチング
+    // 7. 必要に応じて次のマッチング
     const waitingPlayersCount = getWaitingPlayers().length;
     if (waitingPlayersCount >= 2) {
       matchPlayers();
