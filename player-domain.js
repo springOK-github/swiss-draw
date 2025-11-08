@@ -138,7 +138,7 @@ function returnPlayerFromResting() {
 
     let found = false;
     let currentStatus = null;
-    let playerName = null;
+    let playerName = playerId;
     let targetRowIndex = -1;
 
     for (let i = 1; i < data.length; i++) {
