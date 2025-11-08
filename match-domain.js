@@ -34,6 +34,7 @@ function matchPlayers() {
       const row = playerData[i];
       const playerId = row[playerIndices["プレイヤーID"]];
       const playerName = row[playerIndices["プレイヤー名"]];
+      if (!playerId) continue;
       playerNameMap.set(playerId, playerName);
     }
 
