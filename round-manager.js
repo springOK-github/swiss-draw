@@ -214,12 +214,32 @@ function finishTournament() {
     let lock = null;
 
     try {
-        // 既に終了しているかチェック
         const status = getTournamentStatus();
+        
+        // 既に終了している場合はOMW%再計算のみ実行
         if (status === TOURNAMENT_STATUS.FINISHED) {
+            const confirmResponse = ui.alert(
+                'OMW%再計算',
+                'トーナメントは既に終了しています。\n\n' +
+                'OMW%を再計算しますか？\n' +
+                '（対戦結果を修正した後に実行してください）',
+                ui.ButtonSet.YES_NO
+            );
+            
+            if (confirmResponse !== ui.Button.YES) {
+                ui.alert('処理をキャンセルしました。');
+                return;
+            }
+            
+            lock = acquireLock('OMW%再計算');
+            
+            // OMW%を再計算
+            updateAllOpponentWinRates();
+            
             ui.alert(
-                'トーナメント終了済み',
-                'このトーナメントは既に終了しています。',
+                'OMW%再計算完了',
+                'OMW%の再計算が完了しました。\n\n' +
+                '最新の順位は「🏅 順位表示」から確認できます。',
                 ui.ButtonSet.OK
             );
             return;
