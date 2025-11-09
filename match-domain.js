@@ -145,19 +145,19 @@ function matchPlayersSwiss(roundNumber) {
       const byePlayerId = byePlayer[playerIndices["プレイヤーID"]];
       const byePlayerName = byePlayer[playerIndices["プレイヤー名"]];
 
-      // バイを現在のラウンドシートに記録
+      // バイを現在のラウンドシートに記録（結果も記録）
       inProgressSheet.appendRow([
         roundNumber,
-        tableNumber,
+        tableNumber, // バイにも卓番号を割り当て
         byePlayerId,
         byePlayerName,
         "",
         "バイ（不戦勝）",
-        "バイ"
+        "バイ（不戦勝）" // 結果列に記録
       ]);
 
-      // バイの結果を即座に記録
-      recordByeResult(byePlayerId, roundNumber);
+      // バイの結果を対戦履歴に即座に記録
+      recordByeResult(byePlayerId, roundNumber, tableNumber);
     }
 
     return matches.length + (byePlayer ? 1 : 0);
@@ -230,7 +230,7 @@ function matchPointsGroup(players, indices, opponentsMap) {
  * @param {string} playerId - プレイヤーID
  * @param {number} roundNumber - ラウンド番号
  */
-function recordByeResult(playerId, roundNumber) {
+function recordByeResult(playerId, roundNumber, tableNumber) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const playerSheet = ss.getSheetByName(SHEET_PLAYERS);
   const historySheet = ss.getSheetByName(SHEET_HISTORY);
@@ -262,7 +262,7 @@ function recordByeResult(playerId, roundNumber) {
           newId,
           roundNumber,
           formattedTime,
-          0, // 卓番号なし
+          tableNumber, // バイの卓番号を記録
           playerId,
           playerName,
           "",
@@ -271,7 +271,7 @@ function recordByeResult(playerId, roundNumber) {
           "バイ"
         ]);
 
-        Logger.log(`バイ記録: ${playerId} がラウンド${roundNumber}で不戦勝`);
+        Logger.log(`バイ記録: ${playerId} がラウンド${roundNumber}、卓${tableNumber}で不戦勝`);
         break;
       }
     }
@@ -497,7 +497,7 @@ function recordMatchResult(player1Id, player2Id, matchRow, resultType) {
     const formattedTime = Utilities.formatDate(currentTime, 'Asia/Tokyo', 'yyyy/MM/dd HH:mm:ss');
 
     // 対戦情報を取得
-    const matchRowData = matchData[matchRow + 1];
+    const matchRowData = matchData[matchRow];
     const tableNumber = matchRowData[matchIndices["卓番号"]];
     const roundNumber = matchRowData[matchIndices["ラウンド"]];
 
@@ -518,7 +518,7 @@ function recordMatchResult(player1Id, player2Id, matchRow, resultType) {
     }
 
     // 現在のラウンドシートに結果を記録
-    inProgressSheet.getRange(matchRow + 2, matchIndices["結果"] + 1).setValue(resultText);
+    inProgressSheet.getRange(matchRow + 1, matchIndices["結果"] + 1).setValue(resultText);
 
     // 対戦履歴に記録
     const newId = "T" + Utilities.formatString("%04d", historySheet.getLastRow());

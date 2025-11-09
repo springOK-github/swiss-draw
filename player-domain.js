@@ -69,8 +69,8 @@ function registerPlayer() {
     const currentTime = new Date();
     const formattedTime = Utilities.formatDate(currentTime, 'Asia/Tokyo', 'yyyy/MM/dd HH:mm:ss');
 
-    // スイス方式用: 勝点, 勝数, 敗数, 試合数, 勝率, 参加状況, 最終対戦日時
-    playerSheet.appendRow([newId, playerName, 0, 0, 0, 0, 0, PLAYER_STATUS.ACTIVE, formattedTime]);
+    // スイス方式用: 勝点, 勝数, 敗数, 試合数, OMW%, 参加状況, 最終対戦日時
+    playerSheet.appendRow([playerId, playerName, 0, 0, 0, 0, 0, PLAYER_STATUS.ACTIVE, ""]);
     Logger.log(`プレイヤー ${newId} を登録しました。`);
 
   } catch (e) {
@@ -162,17 +162,23 @@ function calculateOpponentWinRate(playerId) {
     const { indices: historyIndices, data: historyData } = getSheetStructure(historySheet, SHEET_HISTORY);
     const { indices: playerIndices, data: playerData } = getSheetStructure(playerSheet, SHEET_PLAYERS);
 
-    // このプレイヤーの対戦相手を収集
+    // このプレイヤーの対戦相手を収集（バイは除外）
     const opponents = new Set();
 
     for (let i = 1; i < historyData.length; i++) {
       const row = historyData[i];
       const p1 = row[historyIndices["ID1"]];
       const p2 = row[historyIndices["ID2"]];
+      const result = row[historyIndices["結果"]];
 
-      if (p1 === playerId && p2) {
+      // バイの場合はスキップ
+      if (result === "バイ" || !p2) {
+        continue;
+      }
+
+      if (p1 === playerId) {
         opponents.add(p2);
-      } else if (p2 === playerId && p1) {
+      } else if (p2 === playerId) {
         opponents.add(p1);
       }
     }
@@ -231,7 +237,7 @@ function updateOpponentWinRate(playerId) {
       const row = data[i];
       if (row[indices["プレイヤーID"]] === playerId) {
         const rowNumber = i + 1;
-        playerSheet.getRange(rowNumber, indices["勝率"] + 1).setValue(opponentWinRate);
+        playerSheet.getRange(rowNumber, indices["OMW%"] + 1).setValue(opponentWinRate);
         break;
       }
     }
@@ -258,7 +264,7 @@ function updateAllOpponentWinRates() {
       if (status === PLAYER_STATUS.ACTIVE) {
         const opponentWinRate = calculateOpponentWinRate(playerId);
         const rowNumber = i + 1;
-        playerSheet.getRange(rowNumber, indices["勝率"] + 1).setValue(opponentWinRate);
+        playerSheet.getRange(rowNumber, indices["OMW%"] + 1).setValue(opponentWinRate);
       }
     }
 
@@ -287,7 +293,7 @@ function showStandings() {
         const playerId = row[indices["プレイヤーID"]];
         const matches = parseInt(row[indices["試合数"]]) || 0;
         const wins = parseInt(row[indices["勝数"]]) || 0;
-        const opponentWinRate = parseFloat(row[indices["勝率"]]) || 0;
+        const opponentWinRate = parseFloat(row[indices["OMW%"]]) || 0;
 
         return {
           row: row,
@@ -319,7 +325,7 @@ function showStandings() {
     }
 
     let message = '【順位表】\n\n';
-    message += '順位 | 名前 | 勝点 | 勝-敗 | 勝率 | 試合数\n';
+    message += '順位 | 名前 | 勝点 | 勝-敗 | OMW% | 試合数\n';
     message += '─'.repeat(50) + '\n';
 
     for (let i = 0; i < Math.min(activePlayers.length, 20); i++) {
