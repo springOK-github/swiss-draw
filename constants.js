@@ -13,6 +13,10 @@ const PLAYER_STATUS = {
   ACTIVE: "参加中",
   DROPPED: "終了"
 };
+const TOURNAMENT_STATUS = {
+  IN_PROGRESS: "進行中",
+  FINISHED: "終了"
+};
 // 卓に関する設定
 const TABLE_CONFIG = {
   MAX_TABLES: 50,      // デフォルトの最大卓数（PropertiesServiceで上書き可能、範囲: 1-200）
