@@ -17,7 +17,6 @@ function onOpen() {
     .addItem('⚙️ シートの初期設定', 'setupSheets')
     .addSeparator()
     .addItem('🎯 新ラウンド開始', 'startNewRoundUI')
-    .addItem('📊 ラウンド状況確認', 'showRoundStatus')
     .addItem('🏅 順位表示', 'showStandings')
     .addSeparator()
     .addItem('➕ プレイヤーを追加する', 'registerPlayer')
@@ -27,7 +26,6 @@ function onOpen() {
     .addItem('🔧 対戦結果の修正', 'correctMatchResult')
     .addSeparator()
     .addItem('⚙️ 最大卓数の設定', 'configureMaxTables')
-    .addItem('🔄 トーナメントのリセット', 'resetTournament')
     .addToUi();
 }
 
@@ -51,6 +49,7 @@ function setupSheets() {
   playerSheet.setColumnWidth(1, 100);  // プレイヤーID
   playerSheet.setColumnWidth(2, 150);  // プレイヤー名
   playerSheet.setColumnWidth(3, 60);   // 勝点
+  playerSheet.setColumnWidth(7, 100);  // 勝率
   playerSheet.setColumnWidth(8, 100);  // 参加状況
   playerSheet.setColumnWidth(9, 150);  // 最終対戦日時
 

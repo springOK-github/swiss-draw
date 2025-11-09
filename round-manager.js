@@ -113,6 +113,11 @@ function startNewRound() {
         // ラウンド番号を更新
         setCurrentRound(newRound);
 
+        // 勝率を更新（ラウンド2以降）
+        if (newRound > 1) {
+            updateAllOpponentWinRates();
+        }
+
         // マッチングを実行
         const matchCount = matchPlayersSwiss(newRound);
 
@@ -165,113 +170,5 @@ function startNewRoundUI() {
         ui.alert('ラウンド開始', result.message, ui.ButtonSet.OK);
     } else {
         ui.alert('エラー', result.message, ui.ButtonSet.OK);
-    }
-}
-
-/**
- * 現在のラウンド状況を表示します
- */
-function showRoundStatus() {
-    const ui = SpreadsheetApp.getUi();
-    const currentRound = getCurrentRound();
-
-    if (currentRound === 0) {
-        ui.alert('ラウンド状況', 'トーナメントは未開始です。', ui.ButtonSet.OK);
-        return;
-    }
-
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const inProgressSheet = ss.getSheetByName(SHEET_IN_PROGRESS);
-    const { indices, data } = getSheetStructure(inProgressSheet, SHEET_IN_PROGRESS);
-
-    let totalMatches = 0;
-    let completedMatches = 0;
-
-    for (let i = 1; i < data.length; i++) {
-        const row = data[i];
-        const id1 = row[indices["ID1"]];
-        const result = row[indices["結果"]];
-
-        if (id1) {
-            totalMatches++;
-            if (result) {
-                completedMatches++;
-            }
-        }
-    }
-
-    const isComplete = isRoundComplete();
-    const status = isComplete ? '✅ 完了' : '⏳ 進行中';
-
-    ui.alert(
-        'ラウンド状況',
-        `現在のラウンド: ${currentRound}\n` +
-        `状態: ${status}\n\n` +
-        `対戦数: ${completedMatches} / ${totalMatches}`,
-        ui.ButtonSet.OK
-    );
-}
-
-/**
- * トーナメントをリセットします（開発・テスト用）
- */
-function resetTournament() {
-    const ui = SpreadsheetApp.getUi();
-
-    const confirmResponse = ui.alert(
-        'トーナメントのリセット',
-        '⚠️ すべてのラウンドデータと対戦履歴が削除されます。\n' +
-        'プレイヤー情報はリセットされます。\n\n' +
-        '本当に実行しますか？',
-        ui.ButtonSet.YES_NO
-    );
-
-    if (confirmResponse !== ui.Button.YES) {
-        ui.alert('処理をキャンセルしました。');
-        return;
-    }
-
-    let lock = null;
-
-    try {
-        lock = acquireLock('トーナメントリセット');
-
-        // ラウンド番号をリセット
-        setCurrentRound(0);
-
-        // プレイヤーシートの統計をリセット
-        const ss = SpreadsheetApp.getActiveSpreadsheet();
-        const playerSheet = ss.getSheetByName(SHEET_PLAYERS);
-        const { indices: playerIndices, data: playerData } = getSheetStructure(playerSheet, SHEET_PLAYERS);
-
-        for (let i = 1; i < playerData.length; i++) {
-            const rowNum = i + 1;
-            playerSheet.getRange(rowNum, playerIndices["勝点"] + 1).setValue(0);
-            playerSheet.getRange(rowNum, playerIndices["勝数"] + 1).setValue(0);
-            playerSheet.getRange(rowNum, playerIndices["敗数"] + 1).setValue(0);
-            playerSheet.getRange(rowNum, playerIndices["消化試合数"] + 1).setValue(0);
-            playerSheet.getRange(rowNum, playerIndices["参加状況"] + 1).setValue(PLAYER_STATUS.ACTIVE);
-        }
-
-        // 対戦履歴シートをクリア
-        const historySheet = ss.getSheetByName(SHEET_HISTORY);
-        if (historySheet.getLastRow() > 1) {
-            historySheet.getRange(2, 1, historySheet.getLastRow() - 1, historySheet.getLastColumn()).clearContent();
-        }
-
-        // 現在のラウンドシートをクリア
-        const inProgressSheet = ss.getSheetByName(SHEET_IN_PROGRESS);
-        if (inProgressSheet.getLastRow() > 1) {
-            inProgressSheet.getRange(2, 1, inProgressSheet.getLastRow() - 1, inProgressSheet.getLastColumn()).clearContent();
-        }
-
-        ui.alert('リセット完了', 'トーナメントをリセットしました。', ui.ButtonSet.OK);
-        Logger.log("トーナメントをリセットしました。");
-
-    } catch (e) {
-        ui.alert("エラーが発生しました: " + e.toString());
-        Logger.log("resetTournament エラー: " + e.toString());
-    } finally {
-        releaseLock(lock);
     }
 }
