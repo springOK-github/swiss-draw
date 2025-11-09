@@ -19,6 +19,17 @@ function registerPlayer() {
   let lock = null;
 
   try {
+    // トーナメントが終了しているかチェック
+    const tournamentStatus = getTournamentStatus();
+    if (tournamentStatus === TOURNAMENT_STATUS.FINISHED) {
+      ui.alert(
+        'トーナメント終了済み',
+        'このトーナメントは既に終了しています。\n新しいプレイヤーは登録できません。',
+        ui.ButtonSet.OK
+      );
+      return;
+    }
+    
     lock = acquireLock('プレイヤー登録');
     getSheetStructure(playerSheet, SHEET_PLAYERS);
 
@@ -88,6 +99,17 @@ function registerPlayer() {
  */
 function dropoutPlayer() {
   const ui = SpreadsheetApp.getUi();
+
+  // トーナメントが終了しているかチェック
+  const tournamentStatus = getTournamentStatus();
+  if (tournamentStatus === TOURNAMENT_STATUS.FINISHED) {
+    ui.alert(
+      'トーナメント終了済み',
+      'このトーナメントは既に終了しています。\nプレイヤーのステータス変更はできません。',
+      ui.ButtonSet.OK
+    );
+    return;
+  }
 
   const playerId = promptPlayerId(
     'プレイヤーのドロップアウト',
