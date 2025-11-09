@@ -179,7 +179,15 @@ function matchPlayersSwiss(roundNumber) {
  */
 function matchPointsGroup(players, indices, opponentsMap) {
   const matches = [];
-  const available = [...players];
+
+  // 同勝点グループ内でランダムにシャッフル
+  const shuffled = [...players];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+
+  const available = shuffled;
   const skipped = [];
 
   while (available.length >= 2) {
