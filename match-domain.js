@@ -39,7 +39,7 @@ function matchPlayersSwiss(roundNumber) {
       playerNameMap.set(playerId, playerName);
     }
 
-    // 過去対戦相手のマップを作成（バイは除外）
+    // 過去対戦相手のマップを作成（Byeは除外）
     const opponentsMap = new Map();
     const p1Col = historyIndices["ID1"];
     const p2Col = historyIndices["ID2"];
@@ -51,8 +51,8 @@ function matchPlayersSwiss(roundNumber) {
       const p2 = row[p2Col];
       const result = row[resultCol];
 
-      // バイの場合はスキップ（実際の対戦ではないため）
-      if (result === "バイ" || !p1 || !p2) continue;
+      // Byeの場合はスキップ（実際の対戦ではないため）
+      if (result === "Bye" || !p1 || !p2) continue;
 
       if (!opponentsMap.has(p1)) opponentsMap.set(p1, new Set());
       if (!opponentsMap.has(p2)) opponentsMap.set(p2, new Set());
@@ -74,7 +74,7 @@ function matchPlayersSwiss(roundNumber) {
         const winsDiff = (b[playerIndices["勝数"]] || 0) - (a[playerIndices["勝数"]] || 0);
         if (winsDiff !== 0) return winsDiff;
 
-        // それでも同じ場合は試合数が少ない順（バイを受けたプレイヤーを後回し）
+        // それでも同じ場合は試合数が少ない順（Byeを受けたプレイヤーを後回し）
         return (a[playerIndices["試合数"]] || 0) - (b[playerIndices["試合数"]] || 0);
       });
 
@@ -90,12 +90,12 @@ function matchPlayersSwiss(roundNumber) {
     let availablePlayers = [...activePlayers];
     let byePlayer = null;
 
-    // 奇数人数の場合、バイ（不戦勝）を決定
+    // 奇数人数の場合、Byeを決定
     if (availablePlayers.length % 2 === 1) {
-      // 勝点が最も低いプレイヤーにバイを与える（末尾のプレイヤー）
+      // 勝点が最も低いプレイヤーにByeを与える（末尾のプレイヤー）
       byePlayer = availablePlayers.pop();
       const byePlayerId = byePlayer[playerIndices["プレイヤーID"]];
-      Logger.log(`バイ（不戦勝）: ${byePlayerId} (勝点: ${byePlayer[playerIndices["勝点"]] || 0})`);
+      Logger.log(`Bye: ${byePlayerId} (勝点: ${byePlayer[playerIndices["勝点"]] || 0})`);
     }
 
     // 勝点グループごとにマッチング（グループ内でランダム化）
@@ -170,23 +170,23 @@ function matchPlayersSwiss(roundNumber) {
       tableNumber++;
     }
 
-    // バイの処理
+    // Byeの処理
     if (byePlayer) {
       const byePlayerId = byePlayer[playerIndices["プレイヤーID"]];
       const byePlayerName = byePlayer[playerIndices["プレイヤー名"]];
 
-      // バイを現在のラウンドシートに記録（結果も記録）
+      // Byeを現在のラウンドシートに記録（結果も記録）
       inProgressSheet.appendRow([
         roundNumber,
-        tableNumber, // バイにも卓番号を割り当て
+        tableNumber, // Byeにも卓番号を割り当て
         byePlayerId,
         byePlayerName,
         "",
-        "バイ（不戦勝）",
-        "バイ（不戦勝）" // 結果列に記録
+        "", // 相手名は空欄
+        "Bye" // 結果列に記録
       ]);
 
-      // バイの結果を対戦履歴に即座に記録
+      // Byeの結果を対戦履歴に即座に記録
       recordByeResult(byePlayerId, roundNumber, tableNumber);
     }
 
@@ -201,7 +201,7 @@ function matchPlayersSwiss(roundNumber) {
 }
 
 /**
- * バイ（不戦勝）の結果を記録します
+ * Byeの結果を記録します
  * @param {string} playerId - プレイヤーID
  * @param {number} roundNumber - ラウンド番号
  */
@@ -237,16 +237,16 @@ function recordByeResult(playerId, roundNumber, tableNumber) {
           newId,
           roundNumber,
           formattedTime,
-          tableNumber, // バイの卓番号を記録
+          tableNumber, // Byeの卓番号を記録
           playerId,
           playerName,
           "",
-          "バイ（不戦勝）",
+          "", // 相手名は空欄
           playerName,
-          "バイ"
+          "Bye"
         ]);
 
-        Logger.log(`バイ記録: ${playerId} がラウンド${roundNumber}、卓${tableNumber}で不戦勝`);
+        Logger.log(`Bye記録: ${playerId} がラウンド${roundNumber}、卓${tableNumber}でBye`);
         break;
       }
     }

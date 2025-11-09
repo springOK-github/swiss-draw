@@ -162,7 +162,7 @@ function calculateOpponentWinRate(playerId) {
     const { indices: historyIndices, data: historyData } = getSheetStructure(historySheet, SHEET_HISTORY);
     const { indices: playerIndices, data: playerData } = getSheetStructure(playerSheet, SHEET_PLAYERS);
 
-    // このプレイヤーの対戦相手を収集（バイは除外）
+    // このプレイヤーの対戦相手を収集（Byeは除外）
     const opponents = new Set();
 
     for (let i = 1; i < historyData.length; i++) {
@@ -171,8 +171,8 @@ function calculateOpponentWinRate(playerId) {
       const p2 = row[historyIndices["ID2"]];
       const result = row[historyIndices["結果"]];
 
-      // バイの場合はスキップ
-      if (result === "バイ" || !p2) {
+      // Byeの場合はスキップ
+      if (result === "Bye" || !p2) {
         continue;
       }
 

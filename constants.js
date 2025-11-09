@@ -22,9 +22,9 @@ const TABLE_CONFIG = {
 // スイス方式の設定
 const SWISS_CONFIG = {
   POINTS_WIN: 3,       // 勝利時の勝点
-  POINTS_DRAW: 0,      // 引き分け時の勝点（敗北と同じ扱い）
+  POINTS_DRAW: 0,      // 引き分け時の勝点
   POINTS_LOSS: 0,      // 敗北時の勝点
-  POINTS_BYE: 3        // バイ（不戦勝）時の勝点
+  POINTS_BYE: 3        // Bye時の勝点
 };
 
 const REQUIRED_HEADERS = {
