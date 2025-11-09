@@ -166,9 +166,7 @@ function startNewRoundUI() {
 
     const result = startNewRound();
 
-    if (result.success) {
-        ui.alert('ラウンド開始', result.message, ui.ButtonSet.OK);
-    } else {
+    if (!result.success) {
         ui.alert('エラー', result.message, ui.ButtonSet.OK);
     }
 }
