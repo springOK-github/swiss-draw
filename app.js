@@ -17,6 +17,7 @@ function onOpen() {
     .addItem('⚙️ シートの初期設定', 'setupSheets')
     .addSeparator()
     .addItem('🎯 新ラウンド開始', 'startNewRoundUI')
+    .addItem('🏁 トーナメント終了', 'finishTournament')
     .addItem('🏅 順位表示', 'showStandings')
     .addSeparator()
     .addItem('➕ プレイヤーを追加する', 'registerPlayer')
@@ -81,6 +82,9 @@ function setupSheets() {
 
   // ラウンド番号を初期化
   setCurrentRound(0);
+  
+  // トーナメント状態を進行中に初期化
+  setTournamentStatus(TOURNAMENT_STATUS.IN_PROGRESS);
 
   ui.alert('初期設定完了', 'シートの初期設定が完了しました。\n\n「新ラウンド開始」からトーナメントを開始できます。', ui.ButtonSet.OK);
   Logger.log("シートの初期設定が完了しました。");
