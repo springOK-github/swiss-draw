@@ -604,17 +604,6 @@ function correctMatchResult() {
   let lock = null;
 
   try {
-    // トーナメントが終了しているかチェック
-    const tournamentStatus = getTournamentStatus();
-    if (tournamentStatus === TOURNAMENT_STATUS.FINISHED) {
-      ui.alert(
-        'トーナメント終了済み',
-        'このトーナメントは既に終了しています。\n対戦結果の修正はできません。',
-        ui.ButtonSet.OK
-      );
-      return;
-    }
-
     // 1. 対戦IDの入力
     const response = ui.prompt(
       '対戦結果の修正',
