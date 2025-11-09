@@ -514,10 +514,6 @@ function recordMatchResult(player1Id, player2Id, matchRow, resultType) {
     updatePlayerStats(player1Id, resultType === 'win' ? 'win' : 'draw', formattedTime);
     updatePlayerStats(player2Id, resultType === 'win' ? 'loss' : 'draw', formattedTime);
 
-    // 勝率を更新
-    updateOpponentWinRate(player1Id);
-    updateOpponentWinRate(player2Id);
-
     Logger.log(`対戦結果記録: ${player1Id} vs ${player2Id}, 結果: ${resultText}`);
 
   } catch (e) {
