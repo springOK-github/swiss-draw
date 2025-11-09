@@ -487,6 +487,12 @@ function recordMatchResult(player1Id, player2Id, matchRow, resultType) {
     const matchRowData = matchData[matchRow];
     const tableNumber = matchRowData[matchIndices["卓番号"]];
     const roundNumber = matchRowData[matchIndices["ラウンド"]];
+    const existingResult = matchRowData[matchIndices["結果"]];
+
+    // 既に結果が記録されているかチェック
+    if (existingResult && existingResult.trim() !== '') {
+      throw new Error('この対戦は既に結果が記録されています。');
+    }
 
     let winnerId, loserId, winnerName, loserName, resultText;
 
