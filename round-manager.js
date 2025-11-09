@@ -215,7 +215,7 @@ function finishTournament() {
 
     try {
         const status = getTournamentStatus();
-        
+
         // 既に終了している場合はOMW%再計算のみ実行
         if (status === TOURNAMENT_STATUS.FINISHED) {
             const confirmResponse = ui.alert(
@@ -225,17 +225,17 @@ function finishTournament() {
                 '（対戦結果を修正した後に実行してください）',
                 ui.ButtonSet.YES_NO
             );
-            
+
             if (confirmResponse !== ui.Button.YES) {
                 ui.alert('処理をキャンセルしました。');
                 return;
             }
-            
+
             lock = acquireLock('OMW%再計算');
-            
+
             // OMW%を再計算
             updateAllOpponentWinRates();
-            
+
             ui.alert(
                 'OMW%再計算完了',
                 'OMW%の再計算が完了しました。\n\n' +
