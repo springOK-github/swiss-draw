@@ -489,7 +489,7 @@ function recordMatchResult(player1Id, player2Id, matchRow, resultType) {
       loserId = null;
       winnerName = getPlayerName(player1Id);
       loserName = getPlayerName(player2Id);
-      resultText = '引き分け';
+      resultText = '両負け';
     }
 
     // 現在のラウンドシートに結果を記録
@@ -502,11 +502,11 @@ function recordMatchResult(player1Id, player2Id, matchRow, resultType) {
       roundNumber,
       formattedTime,
       tableNumber,
-      resultType === 'win' ? winnerId : player1Id,
+      player1Id,
       resultType === 'win' ? winnerName : getPlayerName(player1Id),
-      resultType === 'win' ? loserId : player2Id,
+      player2Id,
       resultType === 'win' ? loserName : getPlayerName(player2Id),
-      resultType === 'win' ? winnerName : '引き分け',
+      resultType === 'win' ? winnerName : '',
       resultText
     ]);
 
