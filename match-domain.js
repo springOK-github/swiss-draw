@@ -39,17 +39,20 @@ function matchPlayersSwiss(roundNumber) {
       playerNameMap.set(playerId, playerName);
     }
 
-    // 過去対戦相手のマップを作成
+    // 過去対戦相手のマップを作成（バイは除外）
     const opponentsMap = new Map();
     const p1Col = historyIndices["ID1"];
     const p2Col = historyIndices["ID2"];
+    const resultCol = historyIndices["結果"];
 
     for (let i = 1; i < historyData.length; i++) {
       const row = historyData[i];
       const p1 = row[p1Col];
       const p2 = row[p2Col];
+      const result = row[resultCol];
 
-      if (!p1 || !p2) continue;
+      // バイの場合はスキップ（実際の対戦ではないため）
+      if (result === "バイ" || !p1 || !p2) continue;
 
       if (!opponentsMap.has(p1)) opponentsMap.set(p1, new Set());
       if (!opponentsMap.has(p2)) opponentsMap.set(p2, new Set());
@@ -95,31 +98,58 @@ function matchPlayersSwiss(roundNumber) {
       Logger.log(`バイ（不戦勝）: ${byePlayerId} (勝点: ${byePlayer[playerIndices["勝点"]] || 0})`);
     }
 
-    // 勝点グループごとにマッチング
-    let currentPointsGroup = [];
+    // 勝点グループごとにマッチング（グループ内でランダム化）
+    let remainingPlayers = [...availablePlayers];
+
+    // 勝点グループごとにシャッフル
     let currentPoints = null;
+    let groupStart = 0;
 
-    for (const player of availablePlayers) {
-      const points = player[playerIndices["勝点"]] || 0;
+    for (let i = 0; i <= remainingPlayers.length; i++) {
+      const points = i < remainingPlayers.length ? (remainingPlayers[i][playerIndices["勝点"]] || 0) : null;
 
-      if (currentPoints === null || currentPoints === points) {
-        currentPointsGroup.push(player);
-        currentPoints = points;
+      if (currentPoints !== null && (points !== currentPoints || i === remainingPlayers.length)) {
+        // 現在のグループをシャッフル
+        const groupSize = i - groupStart;
+        for (let j = groupStart + groupSize - 1; j > groupStart; j--) {
+          const k = groupStart + Math.floor(Math.random() * (j - groupStart + 1));
+          [remainingPlayers[j], remainingPlayers[k]] = [remainingPlayers[k], remainingPlayers[j]];
+        }
+        groupStart = i;
+      }
+
+      currentPoints = points;
+    }
+
+    // 全プレイヤーをマッチング（勝点に関わらず未対戦相手を優先）
+    while (remainingPlayers.length >= 2) {
+      const p1 = remainingPlayers.shift();
+      const p1Id = p1[playerIndices["プレイヤーID"]];
+      const p1Opponents = opponentsMap.get(p1Id) || new Set();
+
+      let p2Index = -1;
+      for (let i = 0; i < remainingPlayers.length; i++) {
+        const p2Id = remainingPlayers[i][playerIndices["プレイヤーID"]];
+        if (!p1Opponents.has(p2Id)) {
+          p2Index = i;
+          break;
+        }
+      }
+
+      if (p2Index !== -1) {
+        const p2 = remainingPlayers.splice(p2Index, 1)[0];
+        const p2Id = p2[playerIndices["プレイヤーID"]];
+        matches.push([p1Id, p2Id]);
+        Logger.log(`マッチング成立: ${p1Id} (勝点${p1[playerIndices["勝点"]] || 0}) vs ${p2Id} (勝点${p2[playerIndices["勝点"]] || 0})`);
       } else {
-        // 前のグループをマッチング
-        const groupMatches = matchPointsGroup(currentPointsGroup, playerIndices, opponentsMap);
-        matches.push(...groupMatches);
-
-        // 新しいグループを開始
-        currentPointsGroup = [player];
-        currentPoints = points;
+        // 未対戦相手が見つからない場合
+        Logger.log(`警告: ${p1Id} の未対戦相手が見つかりませんでした`);
+        break;
       }
     }
 
-    // 最後のグループをマッチング
-    if (currentPointsGroup.length > 0) {
-      const groupMatches = matchPointsGroup(currentPointsGroup, playerIndices, opponentsMap);
-      matches.push(...groupMatches);
+    if (remainingPlayers.length > 0) {
+      Logger.log(`警告: ${remainingPlayers.length} 人のプレイヤーがマッチングされませんでした`);
     }
 
     Logger.log(`マッチング成立: ${matches.length}組`);
@@ -168,61 +198,6 @@ function matchPlayersSwiss(roundNumber) {
   } finally {
     releaseLock(lock);
   }
-}
-
-/**
- * 同じ勝点グループ内でマッチングを行います
- * @param {Array} players - プレイヤーの配列
- * @param {Object} indices - 列インデックス
- * @param {Map} opponentsMap - 過去対戦相手のマップ
- * @returns {Array} マッチングの配列 [[p1Id, p2Id], ...]
- */
-function matchPointsGroup(players, indices, opponentsMap) {
-  const matches = [];
-
-  // 同勝点グループ内でランダムにシャッフル
-  const shuffled = [...players];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-
-  const available = shuffled;
-  const skipped = [];
-
-  while (available.length >= 2) {
-    const p1 = available.shift();
-    const p1Id = p1[indices["プレイヤーID"]];
-    const p1Opponents = opponentsMap.get(p1Id) || new Set();
-
-    let p2Index = -1;
-    for (let i = 0; i < available.length; i++) {
-      const p2Id = available[i][indices["プレイヤーID"]];
-      if (!p1Opponents.has(p2Id)) {
-        p2Index = i;
-        break;
-      }
-    }
-
-    if (p2Index !== -1) {
-      const p2 = available.splice(p2Index, 1)[0];
-      const p2Id = p2[indices["プレイヤーID"]];
-      matches.push([p1Id, p2Id]);
-      Logger.log(`マッチング成立: ${p1Id} (勝点${p1[indices["勝点"]] || 0}) vs ${p2Id} (勝点${p2[indices["勝点"]] || 0})`);
-    } else {
-      // 未対戦相手が見つからない場合、スキップ
-      skipped.push(p1);
-      Logger.log(`警告: ${p1Id} の未対戦相手が見つかりませんでした`);
-    }
-  }
-
-  // スキップされたプレイヤーと残りのプレイヤーを次のグループに回す
-  // （実装では同一グループ内で完結させるため、ここでは記録のみ）
-  if (skipped.length > 0 || available.length > 0) {
-    Logger.log(`警告: ${skipped.length + available.length} 人のプレイヤーがマッチングされませんでした`);
-  }
-
-  return matches;
 }
 
 /**
