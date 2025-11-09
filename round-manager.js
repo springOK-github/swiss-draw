@@ -150,7 +150,7 @@ function startNewRound() {
  */
 function startNewRoundUI() {
     const ui = SpreadsheetApp.getUi();
-    
+
     // トーナメントが終了しているかチェック
     const tournamentStatus = getTournamentStatus();
     if (tournamentStatus === TOURNAMENT_STATUS.FINISHED) {
@@ -161,7 +161,7 @@ function startNewRoundUI() {
         );
         return;
     }
-    
+
     const currentRound = getCurrentRound();
 
     const confirmResponse = ui.alert(
@@ -212,7 +212,7 @@ function setTournamentStatus(status) {
 function finishTournament() {
     const ui = SpreadsheetApp.getUi();
     let lock = null;
-    
+
     try {
         // 既に終了しているかチェック
         const status = getTournamentStatus();
@@ -224,7 +224,7 @@ function finishTournament() {
             );
             return;
         }
-        
+
         // 現在のラウンドが完了しているかチェック
         if (!isRoundComplete()) {
             ui.alert(
@@ -234,7 +234,7 @@ function finishTournament() {
             );
             return;
         }
-        
+
         const confirmResponse = ui.alert(
             'トーナメント終了確認',
             'トーナメントを終了しますか？\n\n' +
@@ -242,27 +242,27 @@ function finishTournament() {
             'OMW%が最終更新されます。',
             ui.ButtonSet.YES_NO
         );
-        
+
         if (confirmResponse !== ui.Button.YES) {
             ui.alert('処理をキャンセルしました。');
             return;
         }
-        
+
         lock = acquireLock('トーナメント終了');
-        
+
         // OMW%を最終更新
         updateAllOpponentWinRates();
-        
+
         // トーナメント状態を終了に設定
         setTournamentStatus(TOURNAMENT_STATUS.FINISHED);
-        
+
         ui.alert(
             'トーナメント終了',
             'トーナメントが正常に終了しました。\n\n' +
             '最終順位は「🏅 順位表示」から確認できます。',
             ui.ButtonSet.OK
         );
-        
+
     } catch (e) {
         Logger.log("finishTournament エラー: " + e.message);
         ui.alert('エラー', 'トーナメント終了中にエラーが発生しました: ' + e.message, ui.ButtonSet.OK);

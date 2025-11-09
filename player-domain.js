@@ -29,7 +29,7 @@ function registerPlayer() {
       );
       return;
     }
-    
+
     lock = acquireLock('プレイヤー登録');
     getSheetStructure(playerSheet, SHEET_PLAYERS);
 

@@ -82,7 +82,7 @@ function setupSheets() {
 
   // ラウンド番号を初期化
   setCurrentRound(0);
-  
+
   // トーナメント状態を進行中に初期化
   setTournamentStatus(TOURNAMENT_STATUS.IN_PROGRESS);
 

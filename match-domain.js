@@ -264,7 +264,7 @@ function recordByeResult(playerId, roundNumber, tableNumber) {
  */
 function promptAndRecordResult() {
   const ui = SpreadsheetApp.getUi();
-  
+
   // トーナメントが終了しているかチェック
   const tournamentStatus = getTournamentStatus();
   if (tournamentStatus === TOURNAMENT_STATUS.FINISHED) {
@@ -275,7 +275,7 @@ function promptAndRecordResult() {
     );
     return;
   }
-  
+
   const currentRound = getCurrentRound();
 
   if (currentRound === 0) {
@@ -614,7 +614,7 @@ function correctMatchResult() {
       );
       return;
     }
-    
+
     // 1. 対戦IDの入力
     const response = ui.prompt(
       '対戦結果の修正',
