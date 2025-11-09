@@ -594,9 +594,12 @@ function updatePlayerStats(playerId, result, timestamp) {
 // =========================================
 
 /**
- * 対戦結果の勝敗を修正します。
- * 対戦IDを指定して、勝者と敗者を入れ替えます。
- * 両プレイヤーの統計情報（勝数・敗数）も自動的に調整されます。
+ * 対戦結果を修正します。
+ * 対戦IDを指定して、以下の修正が可能です：
+ * - 勝敗の入れ替え（勝者と敗者を逆にする）
+ * - 勝敗から引き分けへ変更
+ * - 引き分けから勝敗へ変更
+ * 両プレイヤーの統計情報（勝点・勝数・敗数）も自動的に調整されます。
  */
 function correctMatchResult() {
   const ui = SpreadsheetApp.getUi();
@@ -647,68 +650,247 @@ function correctMatchResult() {
       return;
     }
 
-    // 3. 現在の勝者と敗者を取得
-    const currentWinnerId = matchData[historyIndices["ID1"]];
-    const currentWinnerName = matchData[historyIndices["プレイヤー1"]];
-    const currentLoserId = matchData[historyIndices["ID2"]];
-    const currentLoserName = matchData[historyIndices["プレイヤー2"]];
+    const player1Id = matchData[historyIndices["ID1"]];
+    const player1Name = matchData[historyIndices["プレイヤー1"]];
+    const player2Id = matchData[historyIndices["ID2"]];
+    const player2Name = matchData[historyIndices["プレイヤー2"]];
+    const currentResult = matchData[historyIndices["結果"]];
+    const currentWinnerName = matchData[historyIndices["勝者名"]];
 
-    // 4. 修正の確認
-    const confirmResponse = ui.alert(
-      '勝敗修正の確認',
-      `対戦ID: ${matchId}\n\n` +
-      `【現在】\n` +
-      `勝者: ${currentWinnerName} (${currentWinnerId})\n` +
-      `敗者: ${currentLoserName} (${currentLoserId})\n\n` +
-      `【修正後】\n` +
-      `勝者: ${currentLoserName} (${currentLoserId})\n` +
-      `敗者: ${currentWinnerName} (${currentWinnerId})\n\n` +
-      '勝敗を入れ替えますか？',
-      ui.ButtonSet.YES_NO
-    );
-
-    if (confirmResponse !== ui.Button.YES) {
-      ui.alert('処理をキャンセルしました。');
+    // Byeの対戦は修正不可
+    if (currentResult === "Bye" || !player2Id) {
+      ui.alert('エラー', 'Byeの対戦結果は修正できません。', ui.ButtonSet.OK);
       return;
     }
 
-    // 5. 対戦履歴を更新（勝者と敗者を入れ替え）
-    historySheet.getRange(matchRow, historyIndices["ID1"] + 1).setValue(currentLoserId);
-    historySheet.getRange(matchRow, historyIndices["プレイヤー1"] + 1).setValue(currentLoserName);
-    historySheet.getRange(matchRow, historyIndices["ID2"] + 1).setValue(currentWinnerId);
-    historySheet.getRange(matchRow, historyIndices["プレイヤー2"] + 1).setValue(currentWinnerName);
-    historySheet.getRange(matchRow, historyIndices["勝者名"] + 1).setValue(currentLoserName);
+    // 3. 現在の結果タイプを判定
+    const isDraw = (currentResult === "両負け");
 
-    // 6. プレイヤーの統計を修正
-    const playerSheet = ss.getSheetByName(SHEET_PLAYERS);
-    const { indices: playerIndices, data: playerData } = getSheetStructure(playerSheet, SHEET_PLAYERS);
+    // 4. 修正タイプを選択
+    let correctionType;
+    if (isDraw) {
+      // 引き分けの場合：勝敗に変更のみ
+      const typeResponse = ui.alert(
+        '修正タイプの選択',
+        `対戦ID: ${matchId}\n\n` +
+        `【現在の結果】\n` +
+        `${player1Name} vs ${player2Name}\n` +
+        `結果: 引き分け（両負け）\n\n` +
+        '勝敗に変更しますか？',
+        ui.ButtonSet.YES_NO
+      );
 
-    for (let i = 1; i < playerData.length; i++) {
-      const row = playerData[i];
-      const playerId = row[playerIndices["プレイヤーID"]];
-      const rowNum = i + 1;
+      if (typeResponse !== ui.Button.YES) {
+        ui.alert('処理をキャンセルしました。');
+        return;
+      }
+      correctionType = 'draw_to_win';
+    } else {
+      // 勝敗の場合：入れ替えまたは引き分けに変更
+      const typeResponse = ui.prompt(
+        '修正タイプの選択',
+        `対戦ID: ${matchId}\n\n` +
+        `【現在の結果】\n` +
+        `勝者: ${currentWinnerName}\n` +
+        `${player1Name} vs ${player2Name}\n\n` +
+        `修正タイプを選択してください：\n` +
+        `1: 勝敗を入れ替える\n` +
+        `2: 引き分けに変更する\n\n` +
+        `数字を入力してください：`,
+        ui.ButtonSet.OK_CANCEL
+      );
 
-      if (playerId === currentWinnerId) {
-        // 元の勝者: 勝数-1、敗数+1
-        const currentWins = parseInt(row[playerIndices["勝数"]]) || 0;
-        const currentLosses = parseInt(row[playerIndices["敗数"]]) || 0;
-        playerSheet.getRange(rowNum, playerIndices["勝数"] + 1).setValue(Math.max(0, currentWins - 1));
-        playerSheet.getRange(rowNum, playerIndices["敗数"] + 1).setValue(currentLosses + 1);
-      } else if (playerId === currentLoserId) {
-        // 元の敗者: 勝数+1、敗数-1
-        const currentWins = parseInt(row[playerIndices["勝数"]]) || 0;
-        const currentLosses = parseInt(row[playerIndices["敗数"]]) || 0;
-        playerSheet.getRange(rowNum, playerIndices["勝数"] + 1).setValue(currentWins + 1);
-        playerSheet.getRange(rowNum, playerIndices["敗数"] + 1).setValue(Math.max(0, currentLosses - 1));
+      if (typeResponse.getSelectedButton() !== ui.Button.OK) {
+        ui.alert('処理をキャンセルしました。');
+        return;
+      }
+
+      const typeInput = typeResponse.getResponseText().trim();
+      if (typeInput === '1') {
+        correctionType = 'swap_win_loss';
+      } else if (typeInput === '2') {
+        correctionType = 'win_to_draw';
+      } else {
+        ui.alert('エラー', '1 または 2 を入力してください。', ui.ButtonSet.OK);
+        return;
       }
     }
 
-    Logger.log(`対戦結果修正完了: ${matchId}, 新勝者: ${currentLoserId}, 新敗者: ${currentWinnerId}`);
+    // 5. 修正処理を実行
+    const playerSheet = ss.getSheetByName(SHEET_PLAYERS);
+    const { indices: playerIndices, data: playerData } = getSheetStructure(playerSheet, SHEET_PLAYERS);
+
+    if (correctionType === 'swap_win_loss') {
+      // 勝敗の入れ替え
+      const currentWinnerId = (currentWinnerName === player1Name) ? player1Id : player2Id;
+      const currentLoserId = (currentWinnerId === player1Id) ? player2Id : player1Id;
+      const newWinnerId = currentLoserId;
+      const newWinnerName = (newWinnerId === player1Id) ? player1Name : player2Name;
+      const newLoserId = currentWinnerId;
+      const newLoserName = (newLoserId === player1Id) ? player1Name : player2Name;
+
+      const confirmResponse = ui.alert(
+        '勝敗入れ替えの確認',
+        `【現在】\n` +
+        `勝者: ${currentWinnerName}\n` +
+        `敗者: ${(currentWinnerId === player1Id) ? player2Name : player1Name}\n\n` +
+        `【修正後】\n` +
+        `勝者: ${newWinnerName}\n` +
+        `敗者: ${newLoserName}\n\n` +
+        'この内容で修正しますか？',
+        ui.ButtonSet.YES_NO
+      );
+
+      if (confirmResponse !== ui.Button.YES) {
+        ui.alert('処理をキャンセルしました。');
+        return;
+      }
+
+      // 履歴シートを更新
+      historySheet.getRange(matchRow, historyIndices["ID1"] + 1).setValue(newWinnerId);
+      historySheet.getRange(matchRow, historyIndices["プレイヤー1"] + 1).setValue(newWinnerName);
+      historySheet.getRange(matchRow, historyIndices["ID2"] + 1).setValue(newLoserId);
+      historySheet.getRange(matchRow, historyIndices["プレイヤー2"] + 1).setValue(newLoserName);
+      historySheet.getRange(matchRow, historyIndices["勝者名"] + 1).setValue(newWinnerName);
+      historySheet.getRange(matchRow, historyIndices["結果"] + 1).setValue(`${newWinnerName} 勝利`);
+
+      // プレイヤー統計を更新
+      updatePlayerStatsForCorrection(playerSheet, playerIndices, playerData, currentWinnerId, -1, 1, -SWISS_CONFIG.POINTS_WIN);
+      updatePlayerStatsForCorrection(playerSheet, playerIndices, playerData, currentLoserId, 1, -1, SWISS_CONFIG.POINTS_WIN);
+
+      Logger.log(`対戦結果修正完了（勝敗入れ替え）: ${matchId}, 新勝者: ${newWinnerId}`);
+
+    } else if (correctionType === 'win_to_draw') {
+      // 勝敗から引き分けへ
+      const currentWinnerId = (currentWinnerName === player1Name) ? player1Id : player2Id;
+      const currentLoserId = (currentWinnerId === player1Id) ? player2Id : player1Id;
+
+      const confirmResponse = ui.alert(
+        '引き分けへの変更確認',
+        `【現在】\n` +
+        `勝者: ${currentWinnerName}\n` +
+        `敗者: ${(currentWinnerId === player1Id) ? player2Name : player1Name}\n\n` +
+        `【修正後】\n` +
+        `引き分け（両負け、両者0勝点）\n\n` +
+        'この内容で修正しますか？',
+        ui.ButtonSet.YES_NO
+      );
+
+      if (confirmResponse !== ui.Button.YES) {
+        ui.alert('処理をキャンセルしました。');
+        return;
+      }
+
+      // 履歴シートを更新（ID順は維持、勝者名を空に、結果を「両負け」に）
+      historySheet.getRange(matchRow, historyIndices["勝者名"] + 1).setValue('');
+      historySheet.getRange(matchRow, historyIndices["結果"] + 1).setValue('両負け');
+
+      // プレイヤー統計を更新
+      // 勝者: 勝数-1、敗数+1、勝点-3
+      updatePlayerStatsForCorrection(playerSheet, playerIndices, playerData, currentWinnerId, -1, 1, -SWISS_CONFIG.POINTS_WIN);
+      // 敗者: 敗数は変わらず（既に敗北扱い）、勝点変化なし
+
+      Logger.log(`対戦結果修正完了（勝敗→引き分け）: ${matchId}`);
+
+    } else if (correctionType === 'draw_to_win') {
+      // 引き分けから勝敗へ
+      const winnerResponse = ui.prompt(
+        '勝者の選択',
+        `勝者を選択してください：\n\n` +
+        `1: ${player1Name} (${player1Id})\n` +
+        `2: ${player2Name} (${player2Id})\n\n` +
+        `数字を入力してください：`,
+        ui.ButtonSet.OK_CANCEL
+      );
+
+      if (winnerResponse.getSelectedButton() !== ui.Button.OK) {
+        ui.alert('処理をキャンセルしました。');
+        return;
+      }
+
+      const winnerInput = winnerResponse.getResponseText().trim();
+      let newWinnerId, newWinnerName, newLoserId, newLoserName;
+
+      if (winnerInput === '1') {
+        newWinnerId = player1Id;
+        newWinnerName = player1Name;
+        newLoserId = player2Id;
+        newLoserName = player2Name;
+      } else if (winnerInput === '2') {
+        newWinnerId = player2Id;
+        newWinnerName = player2Name;
+        newLoserId = player1Id;
+        newLoserName = player1Name;
+      } else {
+        ui.alert('エラー', '1 または 2 を入力してください。', ui.ButtonSet.OK);
+        return;
+      }
+
+      const confirmResponse = ui.alert(
+        '勝敗への変更確認',
+        `【現在】\n` +
+        `引き分け（両負け）\n\n` +
+        `【修正後】\n` +
+        `勝者: ${newWinnerName} (3勝点)\n` +
+        `敗者: ${newLoserName} (0勝点)\n\n` +
+        'この内容で修正しますか？',
+        ui.ButtonSet.YES_NO
+      );
+
+      if (confirmResponse !== ui.Button.YES) {
+        ui.alert('処理をキャンセルしました。');
+        return;
+      }
+
+      // 履歴シートを更新
+      historySheet.getRange(matchRow, historyIndices["ID1"] + 1).setValue(newWinnerId);
+      historySheet.getRange(matchRow, historyIndices["プレイヤー1"] + 1).setValue(newWinnerName);
+      historySheet.getRange(matchRow, historyIndices["ID2"] + 1).setValue(newLoserId);
+      historySheet.getRange(matchRow, historyIndices["プレイヤー2"] + 1).setValue(newLoserName);
+      historySheet.getRange(matchRow, historyIndices["勝者名"] + 1).setValue(newWinnerName);
+      historySheet.getRange(matchRow, historyIndices["結果"] + 1).setValue(`${newWinnerName} 勝利`);
+
+      // プレイヤー統計を更新
+      // 新勝者: 勝数+1、敗数-1、勝点+3
+      updatePlayerStatsForCorrection(playerSheet, playerIndices, playerData, newWinnerId, 1, -1, SWISS_CONFIG.POINTS_WIN);
+      // 新敗者: 敗数は変わらず（既に敗北扱い）、勝点変化なし
+
+      Logger.log(`対戦結果修正完了（引き分け→勝敗）: ${matchId}, 勝者: ${newWinnerId}`);
+    }
+
+    ui.alert('修正完了', '対戦結果の修正が完了しました。', ui.ButtonSet.OK);
 
   } catch (e) {
     ui.alert("エラーが発生しました: " + e.toString());
     Logger.log("correctMatchResult エラー: " + e.toString());
   } finally {
     releaseLock(lock);
+  }
+}
+
+/**
+ * プレイヤーの統計情報を修正します（対戦結果修正用）
+ * @param {Sheet} playerSheet - プレイヤーシート
+ * @param {Object} playerIndices - プレイヤーシートの列インデックス
+ * @param {Array} playerData - プレイヤーシートのデータ
+ * @param {string} playerId - プレイヤーID
+ * @param {number} winsDelta - 勝数の増減
+ * @param {number} lossesDelta - 敗数の増減
+ * @param {number} pointsDelta - 勝点の増減
+ */
+function updatePlayerStatsForCorrection(playerSheet, playerIndices, playerData, playerId, winsDelta, lossesDelta, pointsDelta) {
+  for (let i = 1; i < playerData.length; i++) {
+    const row = playerData[i];
+    if (row[playerIndices["プレイヤーID"]] === playerId) {
+      const rowNum = i + 1;
+      const currentWins = parseInt(row[playerIndices["勝数"]]) || 0;
+      const currentLosses = parseInt(row[playerIndices["敗数"]]) || 0;
+      const currentPoints = parseInt(row[playerIndices["勝点"]]) || 0;
+
+      playerSheet.getRange(rowNum, playerIndices["勝数"] + 1).setValue(Math.max(0, currentWins + winsDelta));
+      playerSheet.getRange(rowNum, playerIndices["敗数"] + 1).setValue(Math.max(0, currentLosses + lossesDelta));
+      playerSheet.getRange(rowNum, playerIndices["勝点"] + 1).setValue(Math.max(0, currentPoints + pointsDelta));
+      return;
+    }
   }
 }
