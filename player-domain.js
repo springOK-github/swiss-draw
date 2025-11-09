@@ -19,12 +19,13 @@ function registerPlayer() {
   let lock = null;
 
   try {
-    // トーナメントが終了しているかチェック
-    const tournamentStatus = getTournamentStatus();
-    if (tournamentStatus === TOURNAMENT_STATUS.FINISHED) {
+    // トーナメント開始後は追加不可
+    const currentRound = getCurrentRound();
+    if (currentRound > 0) {
       ui.alert(
-        'トーナメント終了済み',
-        'このトーナメントは既に終了しています。\n新しいプレイヤーは登録できません。',
+        'プレイヤー追加不可',
+        `トーナメント開始後は新しいプレイヤーを追加できません。\n\n` +
+        `現在のラウンド: ${currentRound}`,
         ui.ButtonSet.OK
       );
       return;
@@ -33,9 +34,30 @@ function registerPlayer() {
     lock = acquireLock('プレイヤー登録');
     getSheetStructure(playerSheet, SHEET_PLAYERS);
 
+    // 既存プレイヤー数を取得
+    const { indices, data } = getSheetStructure(playerSheet, SHEET_PLAYERS);
+    const currentPlayerCount = data.length - 1; // ヘッダーを除く
+
+    // 最大卓数の2倍を超えて登録できない
+    const maxTables = getMaxTables();
+    const maxPlayers = maxTables * 2;
+
+    if (currentPlayerCount >= maxPlayers) {
+      ui.alert(
+        'プレイヤー登録不可',
+        `プレイヤー数が上限に達しています。\n\n` +
+        `現在のプレイヤー数: ${currentPlayerCount}人\n` +
+        `最大プレイヤー数: ${maxPlayers}人（最大卓数 ${maxTables}卓 × 2）\n\n` +
+        `プレイヤーを追加するには、先に「⚙️ 最大卓数の設定」で卓数を増やしてください。`,
+        ui.ButtonSet.OK
+      );
+      return;
+    }
+
     const response = ui.prompt(
       'プレイヤー登録',
-      'プレイヤー名を入力してください：',
+      `プレイヤー名を入力してください：\n\n` +
+      `現在: ${currentPlayerCount}/${maxPlayers}人`,
       ui.ButtonSet.OK_CANCEL);
 
     if (response.getSelectedButton() == ui.Button.CANCEL) {
@@ -44,7 +66,6 @@ function registerPlayer() {
     }
 
     // 既存の最大ID番号を取得
-    const { indices, data } = getSheetStructure(playerSheet, SHEET_PLAYERS);
     let maxIdNumber = 0;
 
     for (let i = 1; i < data.length; i++) {
