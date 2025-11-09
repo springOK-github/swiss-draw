@@ -69,11 +69,9 @@ function registerPlayer() {
     const currentTime = new Date();
     const formattedTime = Utilities.formatDate(currentTime, 'Asia/Tokyo', 'yyyy/MM/dd HH:mm:ss');
 
-    // スイス方式用: 勝点, 勝数, 敗数, 消化試合数, 参加状況, 最終対戦日時
-    playerSheet.appendRow([newId, playerName, 0, 0, 0, 0, PLAYER_STATUS.ACTIVE, formattedTime]);
+    // スイス方式用: 勝点, 勝数, 敗数, 試合数, 勝率, 参加状況, 最終対戦日時
+    playerSheet.appendRow([newId, playerName, 0, 0, 0, 0, 0, PLAYER_STATUS.ACTIVE, formattedTime]);
     Logger.log(`プレイヤー ${newId} を登録しました。`);
-
-    ui.alert('登録完了', `プレイヤー ${playerName} (${newId}) を登録しました。`, ui.ButtonSet.OK);
 
   } catch (e) {
     ui.alert("エラーが発生しました: " + e.toString());
@@ -136,7 +134,6 @@ function dropoutPlayer() {
     }
 
     playerSheet.getRange(targetRowIndex, indices["参加状況"] + 1).setValue(PLAYER_STATUS.DROPPED);
-    ui.alert('処理完了', `プレイヤー ${playerName} をドロップアウトさせました。`, ui.ButtonSet.OK);
     Logger.log(`プレイヤー ${playerId} をドロップアウトさせました。`);
 
   } catch (e) {
@@ -152,9 +149,9 @@ function dropoutPlayer() {
 // =========================================
 
 /**
- * プレイヤーのオポネント勝率を計算します
+ * プレイヤーの勝率を計算します（対戦相手の平均勝率）
  * @param {string} playerId - プレイヤーID
- * @returns {number} オポネント勝率（0.0～1.0）
+ * @returns {number} 勝率（0.0～1.0）
  */
 function calculateOpponentWinRate(playerId) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -193,7 +190,7 @@ function calculateOpponentWinRate(playerId) {
         const row = playerData[i];
         if (row[playerIndices["プレイヤーID"]] === opponentId) {
           const wins = parseInt(row[playerIndices["勝数"]]) || 0;
-          const matches = parseInt(row[playerIndices["消化試合数"]]) || 0;
+          const matches = parseInt(row[playerIndices["試合数"]]) || 0;
 
           if (matches > 0) {
             const winRate = wins / matches;
@@ -219,6 +216,59 @@ function calculateOpponentWinRate(playerId) {
 }
 
 /**
+ * プレイヤーの勝率をシートに更新します
+ * @param {string} playerId - プレイヤーID
+ */
+function updateOpponentWinRate(playerId) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const playerSheet = ss.getSheetByName(SHEET_PLAYERS);
+
+  try {
+    const { indices, data } = getSheetStructure(playerSheet, SHEET_PLAYERS);
+    const opponentWinRate = calculateOpponentWinRate(playerId);
+
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      if (row[indices["プレイヤーID"]] === playerId) {
+        const rowNumber = i + 1;
+        playerSheet.getRange(rowNumber, indices["勝率"] + 1).setValue(opponentWinRate);
+        break;
+      }
+    }
+  } catch (e) {
+    Logger.log(`updateOpponentWinRate エラー (${playerId}): ` + e.message);
+  }
+}
+
+/**
+ * すべての参加中プレイヤーの勝率を更新します
+ */
+function updateAllOpponentWinRates() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const playerSheet = ss.getSheetByName(SHEET_PLAYERS);
+
+  try {
+    const { indices, data } = getSheetStructure(playerSheet, SHEET_PLAYERS);
+
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      const playerId = row[indices["プレイヤーID"]];
+      const status = row[indices["参加状況"]];
+
+      if (status === PLAYER_STATUS.ACTIVE) {
+        const opponentWinRate = calculateOpponentWinRate(playerId);
+        const rowNumber = i + 1;
+        playerSheet.getRange(rowNumber, indices["勝率"] + 1).setValue(opponentWinRate);
+      }
+    }
+
+    Logger.log("すべてのプレイヤーの勝率を更新しました。");
+  } catch (e) {
+    Logger.log("updateAllOpponentWinRates エラー: " + e.message);
+  }
+}
+
+/**
  * 現在の順位表を表示します
  */
 function showStandings() {
@@ -235,14 +285,15 @@ function showStandings() {
       .filter(row => row[indices["参加状況"]] === PLAYER_STATUS.ACTIVE)
       .map(row => {
         const playerId = row[indices["プレイヤーID"]];
-        const matches = parseInt(row[indices["消化試合数"]]) || 0;
+        const matches = parseInt(row[indices["試合数"]]) || 0;
         const wins = parseInt(row[indices["勝数"]]) || 0;
+        const opponentWinRate = parseFloat(row[indices["勝率"]]) || 0;
 
         return {
           row: row,
           playerId: playerId,
           matchWinRate: matches > 0 ? wins / matches : 0,
-          opponentWinRate: calculateOpponentWinRate(playerId)
+          opponentWinRate: opponentWinRate
         };
       })
       .sort((a, b) => {
@@ -250,7 +301,7 @@ function showStandings() {
         const pointsDiff = (b.row[indices["勝点"]] || 0) - (a.row[indices["勝点"]] || 0);
         if (pointsDiff !== 0) return pointsDiff;
 
-        // オポネント勝率降順
+        // 勝率降順
         const opponentDiff = b.opponentWinRate - a.opponentWinRate;
         if (Math.abs(opponentDiff) > 0.001) return opponentDiff;
 
@@ -258,8 +309,8 @@ function showStandings() {
         const matchWinDiff = b.matchWinRate - a.matchWinRate;
         if (Math.abs(matchWinDiff) > 0.001) return matchWinDiff;
 
-        // 消化試合数昇順（少ない方が上位）
-        return (a.row[indices["消化試合数"]] || 0) - (b.row[indices["消化試合数"]] || 0);
+        // 試合数昇順（少ない方が上位）
+        return (a.row[indices["試合数"]] || 0) - (b.row[indices["試合数"]] || 0);
       });
 
     if (activePlayers.length === 0) {
@@ -268,7 +319,7 @@ function showStandings() {
     }
 
     let message = '【順位表】\n\n';
-    message += '順位 | 名前 | 勝点 | 勝-敗 | オポ率 | 試合数\n';
+    message += '順位 | 名前 | 勝点 | 勝-敗 | 勝率 | 試合数\n';
     message += '─'.repeat(50) + '\n';
 
     for (let i = 0; i < Math.min(activePlayers.length, 20); i++) {
@@ -278,7 +329,7 @@ function showStandings() {
       const points = player.row[indices["勝点"]] || 0;
       const wins = player.row[indices["勝数"]] || 0;
       const losses = player.row[indices["敗数"]] || 0;
-      const matches = player.row[indices["消化試合数"]] || 0;
+      const matches = player.row[indices["試合数"]] || 0;
       const opponentRate = (player.opponentWinRate * 100).toFixed(1);
 
       message += `${rank}. ${name} | ${points}pt | ${wins}-${losses} | ${opponentRate}% | ${matches}試合\n`;

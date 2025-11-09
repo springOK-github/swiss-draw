@@ -45,8 +45,8 @@ function registerTestPlayers() {
       const currentTime = new Date();
       const formattedTime = Utilities.formatDate(currentTime, 'Asia/Tokyo', 'yyyy/MM/dd HH:mm:ss');
 
-      // スイス方式用: 勝点, 勝数, 敗数, 消化試合数, 参加状況, 最終対戦日時
-      playerSheet.appendRow([newId, playerName, 0, 0, 0, 0, PLAYER_STATUS.ACTIVE, formattedTime]);
+      // スイス方式用: 勝点, 勝数, 敗数, 試合数, 勝率, 参加状況, 最終対戦日時
+      playerSheet.appendRow([newId, playerName, 0, 0, 0, 0, 0, PLAYER_STATUS.ACTIVE, formattedTime]);
       Logger.log(`プレイヤー ${playerName} (${newId}) を登録しました。`);
     }
 

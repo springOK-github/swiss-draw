@@ -71,8 +71,8 @@ function matchPlayersSwiss(roundNumber) {
         const winsDiff = (b[playerIndices["勝数"]] || 0) - (a[playerIndices["勝数"]] || 0);
         if (winsDiff !== 0) return winsDiff;
 
-        // それでも同じ場合は消化試合数が少ない順（バイを受けたプレイヤーを後回し）
-        return (a[playerIndices["消化試合数"]] || 0) - (b[playerIndices["消化試合数"]] || 0);
+        // それでも同じ場合は試合数が少ない順（バイを受けたプレイヤーを後回し）
+        return (a[playerIndices["試合数"]] || 0) - (b[playerIndices["試合数"]] || 0);
       });
 
     if (activePlayers.length < 2) {
@@ -238,11 +238,11 @@ function recordByeResult(playerId, roundNumber) {
         const rowNum = i + 1;
         const currentPoints = parseInt(row[playerIndices["勝点"]]) || 0;
         const currentWins = parseInt(row[playerIndices["勝数"]]) || 0;
-        const currentTotal = parseInt(row[playerIndices["消化試合数"]]) || 0;
+        const currentTotal = parseInt(row[playerIndices["試合数"]]) || 0;
 
         playerSheet.getRange(rowNum, playerIndices["勝点"] + 1).setValue(currentPoints + SWISS_CONFIG.POINTS_BYE);
         playerSheet.getRange(rowNum, playerIndices["勝数"] + 1).setValue(currentWins + 1);
-        playerSheet.getRange(rowNum, playerIndices["消化試合数"] + 1).setValue(currentTotal + 1);
+        playerSheet.getRange(rowNum, playerIndices["試合数"] + 1).setValue(currentTotal + 1);
 
         const currentTime = new Date();
         const formattedTime = Utilities.formatDate(currentTime, 'Asia/Tokyo', 'yyyy/MM/dd HH:mm:ss');
@@ -384,7 +384,6 @@ function recordWinLoss() {
 
   try {
     recordMatchResult(formattedWinnerId, loserId, matchRow, 'win');
-    ui.alert('記録完了', '対戦結果を記録しました。', ui.ButtonSet.OK);
   } catch (e) {
     ui.alert('エラー', "エラーが発生しました: " + e.toString(), ui.ButtonSet.OK);
     Logger.log("recordWinLoss エラー: " + e.toString());
@@ -458,7 +457,6 @@ function recordDraw() {
 
   try {
     recordMatchResult(formattedPlayerId, opponentId, matchRow, 'draw');
-    ui.alert('記録完了', '引き分けを記録しました。', ui.ButtonSet.OK);
   } catch (e) {
     ui.alert('エラー', "エラーが発生しました: " + e.toString(), ui.ButtonSet.OK);
     Logger.log("recordDraw エラー: " + e.toString());
@@ -533,6 +531,10 @@ function recordMatchResult(player1Id, player2Id, matchRow, resultType) {
     updatePlayerStats(player1Id, resultType === 'win' ? 'win' : 'draw', formattedTime);
     updatePlayerStats(player2Id, resultType === 'win' ? 'loss' : 'draw', formattedTime);
 
+    // 勝率を更新
+    updateOpponentWinRate(player1Id);
+    updateOpponentWinRate(player2Id);
+
     Logger.log(`対戦結果記録: ${player1Id} vs ${player2Id}, 結果: ${resultText}`);
 
   } catch (e) {
@@ -563,7 +565,7 @@ function updatePlayerStats(playerId, result, timestamp) {
         const currentPoints = parseInt(row[indices["勝点"]]) || 0;
         const currentWins = parseInt(row[indices["勝数"]]) || 0;
         const currentLosses = parseInt(row[indices["敗数"]]) || 0;
-        const currentTotal = parseInt(row[indices["消化試合数"]]) || 0;
+        const currentTotal = parseInt(row[indices["試合数"]]) || 0;
 
         let pointsToAdd = 0;
         let winsToAdd = 0;
@@ -584,7 +586,7 @@ function updatePlayerStats(playerId, result, timestamp) {
         playerSheet.getRange(rowNum, indices["勝点"] + 1).setValue(currentPoints + pointsToAdd);
         playerSheet.getRange(rowNum, indices["勝数"] + 1).setValue(currentWins + winsToAdd);
         playerSheet.getRange(rowNum, indices["敗数"] + 1).setValue(currentLosses + lossesToAdd);
-        playerSheet.getRange(rowNum, indices["消化試合数"] + 1).setValue(currentTotal + 1);
+        playerSheet.getRange(rowNum, indices["試合数"] + 1).setValue(currentTotal + 1);
         playerSheet.getRange(rowNum, indices["最終対戦日時"] + 1).setValue(timestamp);
 
         return;
