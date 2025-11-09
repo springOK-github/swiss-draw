@@ -127,6 +127,19 @@ function setMaxTables(maxTables) {
 function configureMaxTables() {
   const ui = SpreadsheetApp.getUi();
   const currentMaxTables = getMaxTables();
+  const currentRound = getCurrentRound();
+
+  // トーナメント開始後は変更不可
+  if (currentRound > 0) {
+    ui.alert(
+      '設定変更不可',
+      `トーナメント開始後は卓数を変更できません。\n\n` +
+      `現在のラウンド: ${currentRound}\n` +
+      `現在の最大卓数: ${currentMaxTables}卓`,
+      ui.ButtonSet.OK
+    );
+    return;
+  }
 
   const response = ui.prompt(
     '最大卓数の設定',
