@@ -1,5 +1,5 @@
 /**
- * ポケモンカード・ガンスリンガーバトル用マッチングシステム
+ * スイス方式トーナメントマッチングシステム
  * @fileoverview アプリケーション層 - 初期化・設定・排他制御
  * @author springOK
  */
@@ -13,18 +13,21 @@
  */
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
-  ui.createMenu('🃏 ポケモンマッチング')
+  ui.createMenu('🏆 スイス方式トーナメント')
     .addItem('⚙️ シートの初期設定', 'setupSheets')
     .addSeparator()
+    .addItem('🎯 新ラウンド開始', 'startNewRoundUI')
+    .addItem('📊 ラウンド状況確認', 'showRoundStatus')
+    .addItem('🏅 順位表示', 'showStandings')
+    .addSeparator()
     .addItem('➕ プレイヤーを追加する', 'registerPlayer')
-    .addItem('☕ プレイヤーを休憩にする', 'restPlayer')
-    .addItem('↩️ 休憩から復帰させる', 'returnPlayerFromResting')
     .addItem('❌ プレイヤーをドロップアウトさせる', 'dropoutPlayer')
     .addSeparator()
     .addItem('✅ 対戦結果の記録', 'promptAndRecordResult')
     .addItem('🔧 対戦結果の修正', 'correctMatchResult')
     .addSeparator()
     .addItem('⚙️ 最大卓数の設定', 'configureMaxTables')
+    .addItem('🔄 トーナメントのリセット', 'resetTournament')
     .addToUi();
 }
 
@@ -33,6 +36,7 @@ function onOpen() {
  */
 function setupSheets() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ui = SpreadsheetApp.getUi();
 
   // 1. プレイヤーシート
   let playerSheet = ss.getSheetByName(SHEET_PLAYERS);
@@ -44,9 +48,11 @@ function setupSheets() {
   playerSheet.getRange(1, 1, 1, playerHeaders.length).setValues([playerHeaders])
     .setFontWeight("bold").setBackground("#c9daf8").setHorizontalAlignment("center");
   // 幅の調整
-  playerSheet.setColumnWidth(1, 100);
-  playerSheet.setColumnWidth(5, 100);
-  playerSheet.setColumnWidth(6, 150);
+  playerSheet.setColumnWidth(1, 100);  // プレイヤーID
+  playerSheet.setColumnWidth(2, 150);  // プレイヤー名
+  playerSheet.setColumnWidth(3, 60);   // 勝点
+  playerSheet.setColumnWidth(8, 100);  // 参加状況
+  playerSheet.setColumnWidth(9, 150);  // 最終対戦日時
 
   // 2. 対戦履歴シート
   let historySheet = ss.getSheetByName(SHEET_HISTORY);
@@ -57,9 +63,11 @@ function setupSheets() {
   const historyHeaders = REQUIRED_HEADERS[SHEET_HISTORY];
   historySheet.getRange(1, 1, 1, historyHeaders.length).setValues([historyHeaders])
     .setFontWeight("bold").setBackground("#fce5cd").setHorizontalAlignment("center");
-  historySheet.setColumnWidth(1, 150);
+  historySheet.setColumnWidth(1, 100);  // 対戦ID
+  historySheet.setColumnWidth(2, 80);   // ラウンド
+  historySheet.setColumnWidth(3, 150);  // 日時
 
-  // 3. マッチングシート
+  // 3. 現在のラウンドシート
   let inProgressSheet = ss.getSheetByName(SHEET_IN_PROGRESS);
   if (!inProgressSheet) {
     inProgressSheet = ss.insertSheet(SHEET_IN_PROGRESS);
@@ -68,8 +76,14 @@ function setupSheets() {
   const inProgressHeaders = REQUIRED_HEADERS[SHEET_IN_PROGRESS];
   inProgressSheet.getRange(1, 1, 1, inProgressHeaders.length).setValues([inProgressHeaders])
     .setFontWeight("bold").setBackground("#d9ead3").setHorizontalAlignment("center");
-  inProgressSheet.setColumnWidth(3, 80);
+  inProgressSheet.setColumnWidth(1, 80);   // ラウンド
+  inProgressSheet.setColumnWidth(2, 80);   // 卓番号
+  inProgressSheet.setColumnWidth(7, 150);  // 結果
 
+  // ラウンド番号を初期化
+  setCurrentRound(0);
+
+  ui.alert('初期設定完了', 'シートの初期設定が完了しました。\n\n「新ラウンド開始」からトーナメントを開始できます。', ui.ButtonSet.OK);
   Logger.log("シートの初期設定が完了しました。");
 }
 

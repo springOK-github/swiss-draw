@@ -1,5 +1,5 @@
 /**
- * ポケモンカード・ガンスリンガーバトル用マッチングシステム
+ * スイス方式トーナメントマッチングシステム
  * @fileoverview テスト用のユーティリティ関数
  * @author springOK
  */
@@ -10,7 +10,7 @@ const TEST_CONFIG = {
 };
 
 /**
- * テスト用のプレイヤーを一括登録します。
+ * テスト用のプレイヤーを一括登録します（スイス方式対応）
  * registerPlayer()と同じロジックを使用し、名前はプレイヤーIDに固定。
  */
 function registerTestPlayers() {
@@ -45,18 +45,13 @@ function registerTestPlayers() {
       const currentTime = new Date();
       const formattedTime = Utilities.formatDate(currentTime, 'Asia/Tokyo', 'yyyy/MM/dd HH:mm:ss');
 
-      playerSheet.appendRow([newId, playerName, 0, 0, 0, PLAYER_STATUS.WAITING, formattedTime]);
+      // スイス方式用: 勝点, 勝数, 敗数, 消化試合数, 参加状況, 最終対戦日時
+      playerSheet.appendRow([newId, playerName, 0, 0, 0, 0, PLAYER_STATUS.ACTIVE, formattedTime]);
       Logger.log(`プレイヤー ${playerName} (${newId}) を登録しました。`);
     }
 
-    // 自動マッチング
-    const waitingPlayersCount = getWaitingPlayers().length;
-    if (waitingPlayersCount >= 2) {
-      Logger.log(`テストプレイヤー登録完了。待機プレイヤーが ${waitingPlayersCount} 人いるため、自動でマッチングを開始します。`);
-      matchPlayers();
-    } else {
-      Logger.log(`テストプレイヤー登録完了。待機プレイヤーが ${waitingPlayersCount} 人です。`);
-    }
+    Logger.log(`テストプレイヤー登録完了。${numPlayers} 人を登録しました。`);
+    Logger.log('「新ラウンド開始」メニューからトーナメントを開始してください。');
 
   } catch (e) {
     Logger.log("registerTestPlayers エラー: " + e.toString());

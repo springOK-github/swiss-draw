@@ -1,32 +1,35 @@
 /**
- * ポケモンカード・ガンスリンガーバトル用マッチングシステム
+ * スイス方式トーナメントマッチングシステム
  * @fileoverview 対戦ドメイン - マッチング管理と対戦結果の記録・修正
  * @author springOK
  */
 
 // =========================================
-// マッチング管理
+// マッチング管理（スイス方式）
 // =========================================
 
 /**
- * 待機中のプレイヤーを抽出し、再戦履歴を厳格に考慮してマッチングを行います。
- * 過去に対戦した相手しかいない場合、マッチングを成立させずに待機させます。
+ * スイス方式のマッチングを行います
+ * 同じ勝点のプレイヤー同士をマッチングし、再戦を回避します
+ * @param {number} roundNumber - ラウンド番号
+ * @returns {number} 成立したマッチング数
  */
-function matchPlayers() {
+function matchPlayersSwiss(roundNumber) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const inProgressSheet = ss.getSheetByName(SHEET_IN_PROGRESS);
   let lock = null;
 
   try {
-    lock = acquireLock('マッチング実行');
+    lock = acquireLock('スイス方式マッチング実行');
 
     const playerSheet = ss.getSheetByName(SHEET_PLAYERS);
     const historySheet = ss.getSheetByName(SHEET_HISTORY);
 
     const { indices: playerIndices, data: playerData } = getSheetStructure(playerSheet, SHEET_PLAYERS);
     const { indices: historyIndices, data: historyData } = getSheetStructure(historySheet, SHEET_HISTORY);
-    const { indices: matchIndices, data: matchData } = getSheetStructure(inProgressSheet, SHEET_IN_PROGRESS);
+    const { indices: matchIndices } = getSheetStructure(inProgressSheet, SHEET_IN_PROGRESS);
 
+    // プレイヤー名のマップを作成
     const playerNameMap = new Map();
     for (let i = 1; i < playerData.length; i++) {
       const row = playerData[i];
@@ -36,6 +39,7 @@ function matchPlayers() {
       playerNameMap.set(playerId, playerName);
     }
 
+    // 過去対戦相手のマップを作成
     const opponentsMap = new Map();
     const p1Col = historyIndices["ID1"];
     const p2Col = historyIndices["ID2"];
@@ -45,7 +49,6 @@ function matchPlayers() {
       const p1 = row[p1Col];
       const p2 = row[p2Col];
 
-      // 空または null の ID をスキップ
       if (!p1 || !p2) continue;
 
       if (!opponentsMap.has(p1)) opponentsMap.set(p1, new Set());
@@ -55,173 +58,217 @@ function matchPlayers() {
       opponentsMap.get(p2).add(p1);
     }
 
-    // 待機プレイヤーを取得（playerDataから直接抽出してソート）
-    const waitingPlayers = playerData
-      .slice(1)  // ヘッダー行を除外
-      .filter(row => row[playerIndices["参加状況"]] === PLAYER_STATUS.WAITING)
+    // 参加中のプレイヤーを勝点順でソート
+    const activePlayers = playerData
+      .slice(1)
+      .filter(row => row[playerIndices["参加状況"]] === PLAYER_STATUS.ACTIVE)
       .sort((a, b) => {
-        // 勝数が多い順（降順）
-        const winsDiff = b[playerIndices["勝数"]] - a[playerIndices["勝数"]];
+        // 勝点が多い順（降順）
+        const pointsDiff = (b[playerIndices["勝点"]] || 0) - (a[playerIndices["勝点"]] || 0);
+        if (pointsDiff !== 0) return pointsDiff;
+
+        // 勝点が同じ場合は、勝数が多い順
+        const winsDiff = (b[playerIndices["勝数"]] || 0) - (a[playerIndices["勝数"]] || 0);
         if (winsDiff !== 0) return winsDiff;
 
-        // 勝数が同じ場合は、登録/最終対戦が古い順（昇順 = 先着順）
-        const dateA = a[playerIndices["最終対戦日時"]] instanceof Date ?
-          a[playerIndices["最終対戦日時"]].getTime() : 0;
-        const dateB = b[playerIndices["最終対戦日時"]] instanceof Date ?
-          b[playerIndices["最終対戦日時"]].getTime() : 0;
-        return dateA - dateB;
+        // それでも同じ場合は消化試合数が少ない順（バイを受けたプレイヤーを後回し）
+        return (a[playerIndices["消化試合数"]] || 0) - (b[playerIndices["消化試合数"]] || 0);
       });
 
-    if (waitingPlayers.length < 2) {
-      Logger.log(`警告: 現在待機中のプレイヤーは ${waitingPlayers.length} 人です。2人以上必要です。`);
-      return;
-    }
-
-    let matches = [];
-    let availablePlayers = [...waitingPlayers];
-    let skippedPlayers = [];
-
-    Logger.log("--- 厳格な再戦回避マッチング開始 (勝者優先) ---");
-
-    while (availablePlayers.length >= 2) {
-      const p1 = availablePlayers.shift();
-      const p1Id = p1[playerIndices["プレイヤーID"]];
-      const p1Opponents = opponentsMap.get(p1Id) || new Set();
-
-      let p2Index = -1;
-      for (let i = 0; i < availablePlayers.length; i++) {
-        const p2Id = availablePlayers[i][playerIndices["プレイヤーID"]];
-        if (!p1Opponents.has(p2Id)) {
-          p2Index = i;
-          break;
-        }
-      }
-
-      if (p2Index !== -1) {
-        const p2 = availablePlayers.splice(p2Index, 1)[0];
-        matches.push([p1Id, p2[playerIndices["プレイヤーID"]]]);
-        Logger.log(`マッチング成立 (再戦なし): ${p1Id} vs ${p2[playerIndices["プレイヤーID"]]}`);
-      } else {
-        skippedPlayers.push(p1);
-      }
-    }
-
-    skippedPlayers.push(...availablePlayers);
-
-    if (skippedPlayers.length > 0) {
-      Logger.log(`警告: ${skippedPlayers.length} 人のプレイヤーは適切な相手が見つからなかったため、待機を継続します。`);
-    }
-
-    // マッチング結果の反映
-    if (matches.length > 0) {
-      // 既存の卓の状態を確認
-      const availableTables = [];
-      const usedTables = new Set();
-
-      for (let i = 1; i < matchData.length; i++) {
-        const row = matchData[i];
-        const tableNumber = row[matchIndices["卓番号"]];
-        if (!tableNumber) continue;
-
-        if (!row[matchIndices["ID1"]]) {
-          availableTables.push({ row: i, tableNumber: tableNumber });
-        } else {
-          usedTables.add(tableNumber);
-        }
-      }
-
-      // 利用可能な卓数を計算
-      const maxTables = getMaxTables();
-      const totalExistingTables = availableTables.length + usedTables.size;
-      const maxNewTables = Math.max(0, maxTables - totalExistingTables);
-      const totalAvailableSlots = availableTables.length + maxNewTables;
-
-      Logger.log(`[デバッグ] 卓数情報: 最大=${maxTables}, 空き=${availableTables.length}, 使用中=${usedTables.size}, 既存合計=${totalExistingTables}, 新規作成可能=${maxNewTables}, 利用可能スロット=${totalAvailableSlots}`);
-      Logger.log(`[デバッグ] マッチング候補数: ${matches.length}組`);
-
-      // 卓数制限を考慮
-      const actualMatches = matches.slice(0, totalAvailableSlots);
-      const skippedMatches = matches.slice(totalAvailableSlots);
-
-      if (skippedMatches.length > 0) {
-        Logger.log(`警告: 卓数上限により ${skippedMatches.length} 組のマッチングを見送りました。`);
-        for (const match of skippedMatches) {
-          const [p1Id, p2Id] = match;
-          Logger.log(`見送り: ${p1Id} vs ${p2Id}`);
-        }
-      }
-
-      const playerIdsToUpdate = new Set(actualMatches.flat());
-
-      // 更新対象を収集
-      for (let i = 1; i < playerData.length; i++) {
-        const row = playerData[i];
-        const playerId = row[playerIndices["プレイヤーID"]];
-        if (playerIdsToUpdate.has(playerId)) {
-          // 個別にsetValueを呼ぶ（GASの制約により一括更新が難しい）
-          playerSheet.getRange(i + 1, playerIndices["参加状況"] + 1)
-            .setValue(PLAYER_STATUS.IN_PROGRESS);
-        }
-      }
-
-      let nextNewRow = matchData.length;
-
-      for (const match of actualMatches) {
-        const [p1Id, p2Id] = match;
-        let targetRow = null;
-        let tableNumber = null;
-
-        // 勝者の前回使用した卓を確認
-        const lastTable = getLastTableNumber(p1Id);
-        if (lastTable) {
-          const validation = validateTableNumber(lastTable);
-          if (validation.isValid && !usedTables.has(lastTable)) {
-            const availableTableIndex = availableTables.findIndex(t => t.tableNumber === lastTable);
-            if (availableTableIndex !== -1) {
-              const table = availableTables.splice(availableTableIndex, 1)[0];
-              targetRow = table.row;
-              tableNumber = table.tableNumber;
-              usedTables.add(tableNumber);
-            }
-          }
-        }
-
-        if (targetRow === null) {
-          if (availableTables.length > 0) {
-            const table = availableTables.shift();
-            targetRow = table.row;
-            tableNumber = table.tableNumber;
-          } else {
-            const newTableNumber = getNextAvailableTableNumber(inProgressSheet);
-            tableNumber = newTableNumber;
-            targetRow = nextNewRow;
-            nextNewRow++;
-            // 新規卓番号を設定
-            inProgressSheet.getRange(targetRow + 1, 1).setValue(newTableNumber);
-          }
-          usedTables.add(tableNumber);
-        }
-
-        inProgressSheet.getRange(targetRow + 1, 2, 1, 4).setValues([[
-          p1Id,
-          playerNameMap.get(p1Id) || p1Id,
-          p2Id,
-          playerNameMap.get(p2Id) || p2Id
-        ]]);
-      }
-
-      Logger.log(`マッチングが ${actualMatches.length} 件成立しました。「${SHEET_IN_PROGRESS}」シートを確認してください。`);
-      return actualMatches.length;
-    } else {
-      Logger.log("警告: 新しいマッチングは成立しませんでした。");
+    if (activePlayers.length < 2) {
+      Logger.log(`警告: 参加中のプレイヤーは ${activePlayers.length} 人です。2人以上必要です。`);
       return 0;
     }
 
+    Logger.log(`--- ラウンド${roundNumber} スイス方式マッチング開始 ---`);
+    Logger.log(`参加プレイヤー数: ${activePlayers.length}人`);
+
+    let matches = [];
+    let availablePlayers = [...activePlayers];
+    let byePlayer = null;
+
+    // 奇数人数の場合、バイ（不戦勝）を決定
+    if (availablePlayers.length % 2 === 1) {
+      // 勝点が最も低いプレイヤーにバイを与える（末尾のプレイヤー）
+      byePlayer = availablePlayers.pop();
+      const byePlayerId = byePlayer[playerIndices["プレイヤーID"]];
+      Logger.log(`バイ（不戦勝）: ${byePlayerId} (勝点: ${byePlayer[playerIndices["勝点"]] || 0})`);
+    }
+
+    // 勝点グループごとにマッチング
+    let currentPointsGroup = [];
+    let currentPoints = null;
+
+    for (const player of availablePlayers) {
+      const points = player[playerIndices["勝点"]] || 0;
+
+      if (currentPoints === null || currentPoints === points) {
+        currentPointsGroup.push(player);
+        currentPoints = points;
+      } else {
+        // 前のグループをマッチング
+        const groupMatches = matchPointsGroup(currentPointsGroup, playerIndices, opponentsMap);
+        matches.push(...groupMatches);
+
+        // 新しいグループを開始
+        currentPointsGroup = [player];
+        currentPoints = points;
+      }
+    }
+
+    // 最後のグループをマッチング
+    if (currentPointsGroup.length > 0) {
+      const groupMatches = matchPointsGroup(currentPointsGroup, playerIndices, opponentsMap);
+      matches.push(...groupMatches);
+    }
+
+    Logger.log(`マッチング成立: ${matches.length}組`);
+
+    // マッチング結果をシートに反映
+    let tableNumber = TABLE_CONFIG.MIN_TABLE_NUMBER;
+    for (const match of matches) {
+      const [p1Id, p2Id] = match;
+      inProgressSheet.appendRow([
+        roundNumber,
+        tableNumber,
+        p1Id,
+        playerNameMap.get(p1Id) || p1Id,
+        p2Id,
+        playerNameMap.get(p2Id) || p2Id,
+        "" // 結果は空
+      ]);
+      tableNumber++;
+    }
+
+    // バイの処理
+    if (byePlayer) {
+      const byePlayerId = byePlayer[playerIndices["プレイヤーID"]];
+      const byePlayerName = byePlayer[playerIndices["プレイヤー名"]];
+
+      // バイを現在のラウンドシートに記録
+      inProgressSheet.appendRow([
+        roundNumber,
+        tableNumber,
+        byePlayerId,
+        byePlayerName,
+        "",
+        "バイ（不戦勝）",
+        "バイ"
+      ]);
+
+      // バイの結果を即座に記録
+      recordByeResult(byePlayerId, roundNumber);
+    }
+
+    return matches.length + (byePlayer ? 1 : 0);
+
   } catch (e) {
-    Logger.log("matchPlayers エラー: " + e.message);
+    Logger.log("matchPlayersSwiss エラー: " + e.message);
     return 0;
   } finally {
     releaseLock(lock);
+  }
+}
+
+/**
+ * 同じ勝点グループ内でマッチングを行います
+ * @param {Array} players - プレイヤーの配列
+ * @param {Object} indices - 列インデックス
+ * @param {Map} opponentsMap - 過去対戦相手のマップ
+ * @returns {Array} マッチングの配列 [[p1Id, p2Id], ...]
+ */
+function matchPointsGroup(players, indices, opponentsMap) {
+  const matches = [];
+  const available = [...players];
+  const skipped = [];
+
+  while (available.length >= 2) {
+    const p1 = available.shift();
+    const p1Id = p1[indices["プレイヤーID"]];
+    const p1Opponents = opponentsMap.get(p1Id) || new Set();
+
+    let p2Index = -1;
+    for (let i = 0; i < available.length; i++) {
+      const p2Id = available[i][indices["プレイヤーID"]];
+      if (!p1Opponents.has(p2Id)) {
+        p2Index = i;
+        break;
+      }
+    }
+
+    if (p2Index !== -1) {
+      const p2 = available.splice(p2Index, 1)[0];
+      const p2Id = p2[indices["プレイヤーID"]];
+      matches.push([p1Id, p2Id]);
+      Logger.log(`マッチング成立: ${p1Id} (勝点${p1[indices["勝点"]] || 0}) vs ${p2Id} (勝点${p2[indices["勝点"]] || 0})`);
+    } else {
+      // 未対戦相手が見つからない場合、スキップ
+      skipped.push(p1);
+      Logger.log(`警告: ${p1Id} の未対戦相手が見つかりませんでした`);
+    }
+  }
+
+  // スキップされたプレイヤーと残りのプレイヤーを次のグループに回す
+  // （実装では同一グループ内で完結させるため、ここでは記録のみ）
+  if (skipped.length > 0 || available.length > 0) {
+    Logger.log(`警告: ${skipped.length + available.length} 人のプレイヤーがマッチングされませんでした`);
+  }
+
+  return matches;
+}
+
+/**
+ * バイ（不戦勝）の結果を記録します
+ * @param {string} playerId - プレイヤーID
+ * @param {number} roundNumber - ラウンド番号
+ */
+function recordByeResult(playerId, roundNumber) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const playerSheet = ss.getSheetByName(SHEET_PLAYERS);
+  const historySheet = ss.getSheetByName(SHEET_HISTORY);
+
+  try {
+    const { indices: playerIndices, data: playerData } = getSheetStructure(playerSheet, SHEET_PLAYERS);
+    const playerName = getPlayerName(playerId);
+
+    // プレイヤーの統計を更新
+    for (let i = 1; i < playerData.length; i++) {
+      const row = playerData[i];
+      if (row[playerIndices["プレイヤーID"]] === playerId) {
+        const rowNum = i + 1;
+        const currentPoints = parseInt(row[playerIndices["勝点"]]) || 0;
+        const currentWins = parseInt(row[playerIndices["勝数"]]) || 0;
+        const currentTotal = parseInt(row[playerIndices["消化試合数"]]) || 0;
+
+        playerSheet.getRange(rowNum, playerIndices["勝点"] + 1).setValue(currentPoints + SWISS_CONFIG.POINTS_BYE);
+        playerSheet.getRange(rowNum, playerIndices["勝数"] + 1).setValue(currentWins + 1);
+        playerSheet.getRange(rowNum, playerIndices["消化試合数"] + 1).setValue(currentTotal + 1);
+
+        const currentTime = new Date();
+        const formattedTime = Utilities.formatDate(currentTime, 'Asia/Tokyo', 'yyyy/MM/dd HH:mm:ss');
+        playerSheet.getRange(rowNum, playerIndices["最終対戦日時"] + 1).setValue(formattedTime);
+
+        // 対戦履歴に記録
+        const newId = "T" + Utilities.formatString("%04d", historySheet.getLastRow());
+        historySheet.appendRow([
+          newId,
+          roundNumber,
+          formattedTime,
+          0, // 卓番号なし
+          playerId,
+          playerName,
+          "",
+          "バイ（不戦勝）",
+          playerName,
+          "バイ"
+        ]);
+
+        Logger.log(`バイ記録: ${playerId} がラウンド${roundNumber}で不戦勝`);
+        break;
+      }
+    }
+  } catch (e) {
+    Logger.log("recordByeResult エラー: " + e.message);
   }
 }
 
@@ -230,14 +277,53 @@ function matchPlayers() {
 // =========================================
 
 /**
- * カスタムメニューから実行するためのラッパー関数。
+ * カスタムメニューから実行するためのラッパー関数（スイス方式対応）
  */
 function promptAndRecordResult() {
   const ui = SpreadsheetApp.getUi();
+  const currentRound = getCurrentRound();
 
-  // 最初にユーザー入力を受け付け
-  const winnerResponse = ui.prompt(
+  if (currentRound === 0) {
+    ui.alert('エラー', 'トーナメントが開始されていません。先にラウンドを開始してください。', ui.ButtonSet.OK);
+    return;
+  }
+
+  // 結果の種類を選択
+  const resultTypeResponse = ui.prompt(
     '対戦結果の記録',
+    `結果の種類を選択してください：\n\n` +
+    `1: 勝敗（どちらかが勝利）\n` +
+    `2: 引き分け（両者敗北扱い、0勝点）\n\n` +
+    `数字を入力してください：`,
+    ui.ButtonSet.OK_CANCEL
+  );
+
+  if (resultTypeResponse.getSelectedButton() !== ui.Button.OK) {
+    ui.alert('処理をキャンセルしました。');
+    return;
+  }
+
+  const resultType = resultTypeResponse.getResponseText().trim();
+
+  if (resultType === '1') {
+    // 勝敗の記録
+    recordWinLoss();
+  } else if (resultType === '2') {
+    // 引き分けの記録
+    recordDraw();
+  } else {
+    ui.alert('エラー', '1 または 2 を入力してください。', ui.ButtonSet.OK);
+  }
+}
+
+/**
+ * 勝敗を記録します
+ */
+function recordWinLoss() {
+  const ui = SpreadsheetApp.getUi();
+
+  const winnerResponse = ui.prompt(
+    '勝者の入力',
     `勝者のプレイヤーIDの**数字部分のみ**を入力してください (例: P001なら「1」)。`,
     ui.ButtonSet.OK_CANCEL
   );
@@ -250,39 +336,39 @@ function promptAndRecordResult() {
   const rawId = winnerResponse.getResponseText().trim();
 
   if (!/^\d+$/.test(rawId)) {
-    ui.alert('エラー: IDは数字のみで入力してください。');
+    ui.alert('エラー', 'IDは数字のみで入力してください。', ui.ButtonSet.OK);
     return;
   }
 
   const formattedWinnerId = PLAYER_ID_PREFIX + Utilities.formatString(`%0${ID_DIGITS}d`, parseInt(rawId, 10));
 
-  // この時点でロックは取得しない
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const inProgressSheet = ss.getSheetByName(SHEET_IN_PROGRESS);
   const { indices, data } = getSheetStructure(inProgressSheet, SHEET_IN_PROGRESS);
   let loserId = null;
+  let matchRow = -1;
 
-  // 対戦相手の確認（ロック不要）
   for (let i = 1; i < data.length; i++) {
     const row = data[i];
     const p1 = row[indices["ID1"]];
     const p2 = row[indices["ID2"]];
 
-    if (p1 === formattedWinnerId) {
+    if (p1 === formattedWinnerId && p2) {
       loserId = p2;
+      matchRow = i;
       break;
-    } else if (p2 === formattedWinnerId) {
+    } else if (p2 === formattedWinnerId && p1) {
       loserId = p1;
+      matchRow = i;
       break;
     }
   }
 
   if (loserId === null) {
-    ui.alert(`エラー: 勝者ID (${formattedWinnerId}) は「${SHEET_IN_PROGRESS}」シートに見つかりませんでした。\n入力IDが間違っているか、対戦が記録されていません。`);
+    ui.alert('エラー', `勝者ID (${formattedWinnerId}) は現在のラウンドに見つかりませんでした。`, ui.ButtonSet.OK);
     return;
   }
 
-  // ユーザーに確認
   const confirmResponse = ui.alert(
     '対戦結果の確認',
     `以下の内容で記録してよろしいですか？\n\n` +
@@ -297,40 +383,217 @@ function promptAndRecordResult() {
   }
 
   try {
-    // recordResult内でロックを取得するため、ここではロック不要
-    recordResult(formattedWinnerId);
+    recordMatchResult(formattedWinnerId, loserId, matchRow, 'win');
+    ui.alert('記録完了', '対戦結果を記録しました。', ui.ButtonSet.OK);
   } catch (e) {
-    ui.alert("エラーが発生しました: " + e.toString());
-    Logger.log("promptAndRecordResult エラー: " + e.toString());
+    ui.alert('エラー', "エラーが発生しました: " + e.toString(), ui.ButtonSet.OK);
+    Logger.log("recordWinLoss エラー: " + e.toString());
   }
 }
 
 /**
- * 対戦結果を記録し、プレイヤーの統計情報とステータスを更新し、自動で次をマッチングします。
+ * 引き分けを記録します
  */
-function recordResult(winnerId) {
+function recordDraw() {
   const ui = SpreadsheetApp.getUi();
 
-  if (!winnerId) {
-    ui.alert("勝者IDを入力してください。");
+  const playerResponse = ui.prompt(
+    'プレイヤーの入力',
+    `引き分けた対戦のプレイヤーIDの**数字部分のみ**を入力してください (例: P001なら「1」)。`,
+    ui.ButtonSet.OK_CANCEL
+  );
+
+  if (playerResponse.getSelectedButton() !== ui.Button.OK) {
+    ui.alert('処理をキャンセルしました。');
     return;
   }
 
-  // 共通処理を呼び出し
-  const result = updatePlayerState({
-    targetPlayerId: winnerId,
-    newStatus: PLAYER_STATUS.WAITING,
-    opponentNewStatus: PLAYER_STATUS.WAITING,
-    recordResult: true,
-    isTargetWinner: true
-  });
+  const rawId = playerResponse.getResponseText().trim();
 
-  if (!result.success) {
-    ui.alert('エラー', result.message, ui.ButtonSet.OK);
+  if (!/^\d+$/.test(rawId)) {
+    ui.alert('エラー', 'IDは数字のみで入力してください。', ui.ButtonSet.OK);
     return;
   }
 
-  Logger.log(`対戦結果が記録されました。勝者: ${winnerId}, 敗者: ${result.opponentId}。両プレイヤーは待機状態に戻りました。`);
+  const formattedPlayerId = PLAYER_ID_PREFIX + Utilities.formatString(`%0${ID_DIGITS}d`, parseInt(rawId, 10));
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const inProgressSheet = ss.getSheetByName(SHEET_IN_PROGRESS);
+  const { indices, data } = getSheetStructure(inProgressSheet, SHEET_IN_PROGRESS);
+  let opponentId = null;
+  let matchRow = -1;
+
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    const p1 = row[indices["ID1"]];
+    const p2 = row[indices["ID2"]];
+
+    if (p1 === formattedPlayerId && p2) {
+      opponentId = p2;
+      matchRow = i;
+      break;
+    } else if (p2 === formattedPlayerId && p1) {
+      opponentId = p1;
+      matchRow = i;
+      break;
+    }
+  }
+
+  if (opponentId === null) {
+    ui.alert('エラー', `プレイヤーID (${formattedPlayerId}) は現在のラウンドに見つかりませんでした。`, ui.ButtonSet.OK);
+    return;
+  }
+
+  const confirmResponse = ui.alert(
+    '引き分けの確認',
+    `以下の対戦を引き分けとして記録してよろしいですか？\n\n` +
+    `${getPlayerName(formattedPlayerId)} vs ${getPlayerName(opponentId)}`,
+    ui.ButtonSet.YES_NO
+  );
+
+  if (confirmResponse !== ui.Button.YES) {
+    ui.alert('処理をキャンセルしました。');
+    return;
+  }
+
+  try {
+    recordMatchResult(formattedPlayerId, opponentId, matchRow, 'draw');
+    ui.alert('記録完了', '引き分けを記録しました。', ui.ButtonSet.OK);
+  } catch (e) {
+    ui.alert('エラー', "エラーが発生しました: " + e.toString(), ui.ButtonSet.OK);
+    Logger.log("recordDraw エラー: " + e.toString());
+  }
+}
+
+/**
+ * 対戦結果を記録します（スイス方式対応）
+ * @param {string} player1Id - プレイヤー1のID（勝者または引き分けの一方）
+ * @param {string} player2Id - プレイヤー2のID（敗者または引き分けの一方）
+ * @param {number} matchRow - 現在のラウンドシートの行番号（0-indexed）
+ * @param {string} resultType - 'win'（player1が勝利）または 'draw'（引き分け）
+ */
+function recordMatchResult(player1Id, player2Id, matchRow, resultType) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let lock = null;
+
+  try {
+    lock = acquireLock('対戦結果の記録');
+
+    const currentRound = getCurrentRound();
+    const playerSheet = ss.getSheetByName(SHEET_PLAYERS);
+    const historySheet = ss.getSheetByName(SHEET_HISTORY);
+    const inProgressSheet = ss.getSheetByName(SHEET_IN_PROGRESS);
+
+    const { indices: playerIndices, data: playerData } = getSheetStructure(playerSheet, SHEET_PLAYERS);
+    const { indices: matchIndices, data: matchData } = getSheetStructure(inProgressSheet, SHEET_IN_PROGRESS);
+
+    const currentTime = new Date();
+    const formattedTime = Utilities.formatDate(currentTime, 'Asia/Tokyo', 'yyyy/MM/dd HH:mm:ss');
+
+    // 対戦情報を取得
+    const matchRowData = matchData[matchRow + 1];
+    const tableNumber = matchRowData[matchIndices["卓番号"]];
+    const roundNumber = matchRowData[matchIndices["ラウンド"]];
+
+    let winnerId, loserId, winnerName, loserName, resultText;
+
+    if (resultType === 'win') {
+      winnerId = player1Id;
+      loserId = player2Id;
+      winnerName = getPlayerName(winnerId);
+      loserName = getPlayerName(loserId);
+      resultText = `${winnerName} 勝利`;
+    } else if (resultType === 'draw') {
+      winnerId = null;
+      loserId = null;
+      winnerName = getPlayerName(player1Id);
+      loserName = getPlayerName(player2Id);
+      resultText = '引き分け';
+    }
+
+    // 現在のラウンドシートに結果を記録
+    inProgressSheet.getRange(matchRow + 2, matchIndices["結果"] + 1).setValue(resultText);
+
+    // 対戦履歴に記録
+    const newId = "T" + Utilities.formatString("%04d", historySheet.getLastRow());
+    historySheet.appendRow([
+      newId,
+      roundNumber,
+      formattedTime,
+      tableNumber,
+      resultType === 'win' ? winnerId : player1Id,
+      resultType === 'win' ? winnerName : getPlayerName(player1Id),
+      resultType === 'win' ? loserId : player2Id,
+      resultType === 'win' ? loserName : getPlayerName(player2Id),
+      resultType === 'win' ? winnerName : '引き分け',
+      resultText
+    ]);
+
+    // プレイヤーの統計を更新
+    updatePlayerStats(player1Id, resultType === 'win' ? 'win' : 'draw', formattedTime);
+    updatePlayerStats(player2Id, resultType === 'win' ? 'loss' : 'draw', formattedTime);
+
+    Logger.log(`対戦結果記録: ${player1Id} vs ${player2Id}, 結果: ${resultText}`);
+
+  } catch (e) {
+    Logger.log("recordMatchResult エラー: " + e.message);
+    throw e;
+  } finally {
+    releaseLock(lock);
+  }
+}
+
+/**
+ * プレイヤーの統計情報を更新します（スイス方式対応）
+ * @param {string} playerId - プレイヤーID
+ * @param {string} result - 'win', 'loss', 'draw'
+ * @param {string} timestamp - タイムスタンプ
+ */
+function updatePlayerStats(playerId, result, timestamp) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const playerSheet = ss.getSheetByName(SHEET_PLAYERS);
+
+  try {
+    const { indices, data } = getSheetStructure(playerSheet, SHEET_PLAYERS);
+
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      if (row[indices["プレイヤーID"]] === playerId) {
+        const rowNum = i + 1;
+        const currentPoints = parseInt(row[indices["勝点"]]) || 0;
+        const currentWins = parseInt(row[indices["勝数"]]) || 0;
+        const currentLosses = parseInt(row[indices["敗数"]]) || 0;
+        const currentTotal = parseInt(row[indices["消化試合数"]]) || 0;
+
+        let pointsToAdd = 0;
+        let winsToAdd = 0;
+        let lossesToAdd = 0;
+
+        if (result === 'win') {
+          pointsToAdd = SWISS_CONFIG.POINTS_WIN;
+          winsToAdd = 1;
+        } else if (result === 'loss') {
+          pointsToAdd = SWISS_CONFIG.POINTS_LOSS;
+          lossesToAdd = 1;
+        } else if (result === 'draw') {
+          // 引き分けは両者敗北扱い（0勝点）
+          pointsToAdd = SWISS_CONFIG.POINTS_DRAW;
+          lossesToAdd = 1;
+        }
+
+        playerSheet.getRange(rowNum, indices["勝点"] + 1).setValue(currentPoints + pointsToAdd);
+        playerSheet.getRange(rowNum, indices["勝数"] + 1).setValue(currentWins + winsToAdd);
+        playerSheet.getRange(rowNum, indices["敗数"] + 1).setValue(currentLosses + lossesToAdd);
+        playerSheet.getRange(rowNum, indices["消化試合数"] + 1).setValue(currentTotal + 1);
+        playerSheet.getRange(rowNum, indices["最終対戦日時"] + 1).setValue(timestamp);
+
+        return;
+      }
+    }
+    Logger.log(`エラー: プレイヤー ${playerId} が見つかりません。`);
+  } catch (e) {
+    Logger.log("updatePlayerStats エラー: " + e.message);
+  }
 }
 
 // =========================================
