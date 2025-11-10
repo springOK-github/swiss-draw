@@ -20,7 +20,7 @@ function matchPlayersSwiss(roundNumber) {
   let lock = null;
 
   try {
-    lock = acquireLock('スイス方式マッチング実行');
+    lock = acquireLock("スイス方式マッチング実行");
 
     const playerSheet = ss.getSheetByName(SHEET_PLAYERS);
     const historySheet = ss.getSheetByName(SHEET_HISTORY);
@@ -64,7 +64,7 @@ function matchPlayersSwiss(roundNumber) {
     // 参加中のプレイヤーを勝点順でソート
     const activePlayers = playerData
       .slice(1)
-      .filter(row => row[playerIndices["参加状況"]] === PLAYER_STATUS.ACTIVE)
+      .filter((row) => row[playerIndices["参加状況"]] === PLAYER_STATUS.ACTIVE)
       .sort((a, b) => {
         // 勝点が多い順（降順）
         const pointsDiff = (b[playerIndices["勝点"]] || 0) - (a[playerIndices["勝点"]] || 0);
@@ -106,7 +106,7 @@ function matchPlayersSwiss(roundNumber) {
     let groupStart = 0;
 
     for (let i = 0; i <= remainingPlayers.length; i++) {
-      const points = i < remainingPlayers.length ? (remainingPlayers[i][playerIndices["勝点"]] || 0) : null;
+      const points = i < remainingPlayers.length ? remainingPlayers[i][playerIndices["勝点"]] || 0 : null;
 
       if (currentPoints !== null && (points !== currentPoints || i === remainingPlayers.length)) {
         // 現在のグループをシャッフル
@@ -165,7 +165,7 @@ function matchPlayersSwiss(roundNumber) {
         playerNameMap.get(p1Id) || p1Id,
         p2Id,
         playerNameMap.get(p2Id) || p2Id,
-        "" // 結果は空
+        "", // 結果は空
       ]);
       tableNumber++;
     }
@@ -183,7 +183,7 @@ function matchPlayersSwiss(roundNumber) {
         byePlayerName,
         "",
         "", // 相手名は空欄
-        "Bye" // 結果列に記録
+        "Bye", // 結果列に記録
       ]);
 
       // Byeの結果を対戦履歴に即座に記録
@@ -191,7 +191,6 @@ function matchPlayersSwiss(roundNumber) {
     }
 
     return matches.length + (byePlayer ? 1 : 0);
-
   } catch (e) {
     Logger.log("matchPlayersSwiss エラー: " + e.message);
     return 0;
@@ -228,7 +227,7 @@ function recordByeResult(playerId, roundNumber, tableNumber) {
         playerSheet.getRange(rowNum, playerIndices["試合数"] + 1).setValue(currentTotal + 1);
 
         const currentTime = new Date();
-        const formattedTime = Utilities.formatDate(currentTime, 'Asia/Tokyo', 'yyyy/MM/dd HH:mm:ss');
+        const formattedTime = Utilities.formatDate(currentTime, "Asia/Tokyo", "yyyy/MM/dd HH:mm:ss");
         playerSheet.getRange(rowNum, playerIndices["最終対戦日時"] + 1).setValue(formattedTime);
 
         // 対戦履歴に記録
@@ -243,7 +242,7 @@ function recordByeResult(playerId, roundNumber, tableNumber) {
           "",
           "", // 相手名は空欄
           playerName,
-          "Bye"
+          "Bye",
         ]);
 
         Logger.log(`Bye記録: ${playerId} がラウンド${roundNumber}、卓${tableNumber}でBye`);
@@ -268,46 +267,39 @@ function promptAndRecordResult() {
   // トーナメントが終了しているかチェック
   const tournamentStatus = getTournamentStatus();
   if (tournamentStatus === TOURNAMENT_STATUS.FINISHED) {
-    ui.alert(
-      'トーナメント終了済み',
-      'このトーナメントは既に終了しています。\n新しい対戦結果は記録できません。',
-      ui.ButtonSet.OK
-    );
+    ui.alert("トーナメント終了済み", "このトーナメントは既に終了しています。\n新しい対戦結果は記録できません。", ui.ButtonSet.OK);
     return;
   }
 
   const currentRound = getCurrentRound();
 
   if (currentRound === 0) {
-    ui.alert('エラー', 'トーナメントが開始されていません。先にラウンドを開始してください。', ui.ButtonSet.OK);
+    ui.alert("エラー", "トーナメントが開始されていません。先にラウンドを開始してください。", ui.ButtonSet.OK);
     return;
   }
 
   // 結果の種類を選択
   const resultTypeResponse = ui.prompt(
-    '対戦結果の記録',
-    `結果の種類を選択してください：\n\n` +
-    `1: 勝敗（どちらかが勝利）\n` +
-    `2: 引き分け（両者敗北扱い、0勝点）\n\n` +
-    `数字を入力してください：`,
+    "対戦結果の記録",
+    `結果の種類を選択してください：\n\n` + `1: 勝敗（どちらかが勝利）\n` + `2: 引き分け（両者敗北扱い、0勝点）\n\n` + `数字を入力してください：`,
     ui.ButtonSet.OK_CANCEL
   );
 
   if (resultTypeResponse.getSelectedButton() !== ui.Button.OK) {
-    ui.alert('処理をキャンセルしました。');
+    ui.alert("処理をキャンセルしました。");
     return;
   }
 
   const resultType = resultTypeResponse.getResponseText().trim();
 
-  if (resultType === '1') {
+  if (resultType === "1") {
     // 勝敗の記録
     recordWinLoss();
-  } else if (resultType === '2') {
+  } else if (resultType === "2") {
     // 引き分けの記録
     recordDraw();
   } else {
-    ui.alert('エラー', '1 または 2 を入力してください。', ui.ButtonSet.OK);
+    ui.alert("エラー", "1 または 2 を入力してください。", ui.ButtonSet.OK);
   }
 }
 
@@ -317,21 +309,17 @@ function promptAndRecordResult() {
 function recordWinLoss() {
   const ui = SpreadsheetApp.getUi();
 
-  const winnerResponse = ui.prompt(
-    '勝者の入力',
-    `勝者のプレイヤーIDの**数字部分のみ**を入力してください (例: P001なら「1」)。`,
-    ui.ButtonSet.OK_CANCEL
-  );
+  const winnerResponse = ui.prompt("勝者の入力", `勝者のプレイヤーIDの**数字部分のみ**を入力してください (例: P001なら「1」)。`, ui.ButtonSet.OK_CANCEL);
 
   if (winnerResponse.getSelectedButton() !== ui.Button.OK) {
-    ui.alert('処理をキャンセルしました。');
+    ui.alert("処理をキャンセルしました。");
     return;
   }
 
   const rawId = winnerResponse.getResponseText().trim();
 
   if (!/^\d+$/.test(rawId)) {
-    ui.alert('エラー', 'IDは数字のみで入力してください。', ui.ButtonSet.OK);
+    ui.alert("エラー", "IDは数字のみで入力してください。", ui.ButtonSet.OK);
     return;
   }
 
@@ -360,27 +348,25 @@ function recordWinLoss() {
   }
 
   if (loserId === null) {
-    ui.alert('エラー', `勝者ID (${formattedWinnerId}) は現在のラウンドに見つかりませんでした。`, ui.ButtonSet.OK);
+    ui.alert("エラー", `勝者ID (${formattedWinnerId}) は現在のラウンドに見つかりませんでした。`, ui.ButtonSet.OK);
     return;
   }
 
   const confirmResponse = ui.alert(
-    '対戦結果の確認',
-    `以下の内容で記録してよろしいですか？\n\n` +
-    `勝者: ${getPlayerName(formattedWinnerId)}\n` +
-    `敗者: ${getPlayerName(loserId)}`,
+    "対戦結果の確認",
+    `以下の内容で記録してよろしいですか？\n\n` + `勝者: ${getPlayerName(formattedWinnerId)}\n` + `敗者: ${getPlayerName(loserId)}`,
     ui.ButtonSet.YES_NO
   );
 
   if (confirmResponse !== ui.Button.YES) {
-    ui.alert('処理をキャンセルしました。');
+    ui.alert("処理をキャンセルしました。");
     return;
   }
 
   try {
-    recordMatchResult(formattedWinnerId, loserId, matchRow, 'win');
+    recordMatchResult(formattedWinnerId, loserId, matchRow, "win");
   } catch (e) {
-    ui.alert('エラー', "エラーが発生しました: " + e.toString(), ui.ButtonSet.OK);
+    ui.alert("エラー", "エラーが発生しました: " + e.toString(), ui.ButtonSet.OK);
     Logger.log("recordWinLoss エラー: " + e.toString());
   }
 }
@@ -392,20 +378,20 @@ function recordDraw() {
   const ui = SpreadsheetApp.getUi();
 
   const playerResponse = ui.prompt(
-    'プレイヤーの入力',
+    "プレイヤーの入力",
     `引き分けた対戦のプレイヤーIDの**数字部分のみ**を入力してください (例: P001なら「1」)。`,
     ui.ButtonSet.OK_CANCEL
   );
 
   if (playerResponse.getSelectedButton() !== ui.Button.OK) {
-    ui.alert('処理をキャンセルしました。');
+    ui.alert("処理をキャンセルしました。");
     return;
   }
 
   const rawId = playerResponse.getResponseText().trim();
 
   if (!/^\d+$/.test(rawId)) {
-    ui.alert('エラー', 'IDは数字のみで入力してください。', ui.ButtonSet.OK);
+    ui.alert("エラー", "IDは数字のみで入力してください。", ui.ButtonSet.OK);
     return;
   }
 
@@ -434,26 +420,25 @@ function recordDraw() {
   }
 
   if (opponentId === null) {
-    ui.alert('エラー', `プレイヤーID (${formattedPlayerId}) は現在のラウンドに見つかりませんでした。`, ui.ButtonSet.OK);
+    ui.alert("エラー", `プレイヤーID (${formattedPlayerId}) は現在のラウンドに見つかりませんでした。`, ui.ButtonSet.OK);
     return;
   }
 
   const confirmResponse = ui.alert(
-    '引き分けの確認',
-    `以下の対戦を引き分けとして記録してよろしいですか？\n\n` +
-    `${getPlayerName(formattedPlayerId)} vs ${getPlayerName(opponentId)}`,
+    "引き分けの確認",
+    `以下の対戦を引き分けとして記録してよろしいですか？\n\n` + `${getPlayerName(formattedPlayerId)} vs ${getPlayerName(opponentId)}`,
     ui.ButtonSet.YES_NO
   );
 
   if (confirmResponse !== ui.Button.YES) {
-    ui.alert('処理をキャンセルしました。');
+    ui.alert("処理をキャンセルしました。");
     return;
   }
 
   try {
-    recordMatchResult(formattedPlayerId, opponentId, matchRow, 'draw');
+    recordMatchResult(formattedPlayerId, opponentId, matchRow, "draw");
   } catch (e) {
-    ui.alert('エラー', "エラーが発生しました: " + e.toString(), ui.ButtonSet.OK);
+    ui.alert("エラー", "エラーが発生しました: " + e.toString(), ui.ButtonSet.OK);
     Logger.log("recordDraw エラー: " + e.toString());
   }
 }
@@ -470,7 +455,7 @@ function recordMatchResult(player1Id, player2Id, matchRow, resultType) {
   let lock = null;
 
   try {
-    lock = acquireLock('対戦結果の記録');
+    lock = acquireLock("対戦結果の記録");
 
     const currentRound = getCurrentRound();
     const playerSheet = ss.getSheetByName(SHEET_PLAYERS);
@@ -481,7 +466,7 @@ function recordMatchResult(player1Id, player2Id, matchRow, resultType) {
     const { indices: matchIndices, data: matchData } = getSheetStructure(inProgressSheet, SHEET_IN_PROGRESS);
 
     const currentTime = new Date();
-    const formattedTime = Utilities.formatDate(currentTime, 'Asia/Tokyo', 'yyyy/MM/dd HH:mm:ss');
+    const formattedTime = Utilities.formatDate(currentTime, "Asia/Tokyo", "yyyy/MM/dd HH:mm:ss");
 
     // 対戦情報を取得
     const matchRowData = matchData[matchRow];
@@ -490,24 +475,24 @@ function recordMatchResult(player1Id, player2Id, matchRow, resultType) {
     const existingResult = matchRowData[matchIndices["結果"]];
 
     // 既に結果が記録されているかチェック
-    if (existingResult && existingResult.trim() !== '') {
-      throw new Error('この対戦は既に結果が記録されています。');
+    if (existingResult && existingResult.trim() !== "") {
+      throw new Error("この対戦は既に結果が記録されています。");
     }
 
     let winnerId, loserId, winnerName, loserName, resultText;
 
-    if (resultType === 'win') {
+    if (resultType === "win") {
       winnerId = player1Id;
       loserId = player2Id;
       winnerName = getPlayerName(winnerId);
       loserName = getPlayerName(loserId);
       resultText = `${winnerName} 勝利`;
-    } else if (resultType === 'draw') {
+    } else if (resultType === "draw") {
       winnerId = null;
       loserId = null;
       winnerName = getPlayerName(player1Id);
       loserName = getPlayerName(player2Id);
-      resultText = '両負け';
+      resultText = "両負け";
     }
 
     // 現在のラウンドシートに結果を記録
@@ -521,19 +506,18 @@ function recordMatchResult(player1Id, player2Id, matchRow, resultType) {
       formattedTime,
       tableNumber,
       player1Id,
-      resultType === 'win' ? winnerName : getPlayerName(player1Id),
+      resultType === "win" ? winnerName : getPlayerName(player1Id),
       player2Id,
-      resultType === 'win' ? loserName : getPlayerName(player2Id),
-      resultType === 'win' ? winnerName : '',
-      resultText
+      resultType === "win" ? loserName : getPlayerName(player2Id),
+      resultType === "win" ? winnerName : "",
+      resultText,
     ]);
 
     // プレイヤーの統計を更新
-    updatePlayerStats(player1Id, resultType === 'win' ? 'win' : 'draw', formattedTime);
-    updatePlayerStats(player2Id, resultType === 'win' ? 'loss' : 'draw', formattedTime);
+    updatePlayerStats(player1Id, resultType === "win" ? "win" : "draw", formattedTime);
+    updatePlayerStats(player2Id, resultType === "win" ? "loss" : "draw", formattedTime);
 
     Logger.log(`対戦結果記録: ${player1Id} vs ${player2Id}, 結果: ${resultText}`);
-
   } catch (e) {
     Logger.log("recordMatchResult エラー: " + e.message);
     throw e;
@@ -568,13 +552,13 @@ function updatePlayerStats(playerId, result, timestamp) {
         let winsToAdd = 0;
         let lossesToAdd = 0;
 
-        if (result === 'win') {
+        if (result === "win") {
           pointsToAdd = SWISS_CONFIG.POINTS_WIN;
           winsToAdd = 1;
-        } else if (result === 'loss') {
+        } else if (result === "loss") {
           pointsToAdd = SWISS_CONFIG.POINTS_LOSS;
           lossesToAdd = 1;
-        } else if (result === 'draw') {
+        } else if (result === "draw") {
           // 引き分けは両者敗北扱い（0勝点）
           pointsToAdd = SWISS_CONFIG.POINTS_DRAW;
           lossesToAdd = 1;
@@ -614,26 +598,22 @@ function correctMatchResult() {
 
   try {
     // 1. 対戦IDの入力
-    const response = ui.prompt(
-      '対戦結果の修正',
-      '修正する対戦IDの**数字部分のみ**を入力してください (例: T0001なら「1」)。',
-      ui.ButtonSet.OK_CANCEL
-    );
+    const response = ui.prompt("対戦結果の修正", "修正する対戦IDの**数字部分のみ**を入力してください (例: T0001なら「1」)。", ui.ButtonSet.OK_CANCEL);
 
     if (response.getSelectedButton() !== ui.Button.OK) {
-      ui.alert('処理をキャンセルしました。');
+      ui.alert("処理をキャンセルしました。");
       return;
     }
 
     const rawId = response.getResponseText().trim();
     if (!/^\d+$/.test(rawId)) {
-      ui.alert('エラー', 'IDは数字のみで入力してください。', ui.ButtonSet.OK);
+      ui.alert("エラー", "IDは数字のみで入力してください。", ui.ButtonSet.OK);
       return;
     }
 
     const matchId = "T" + Utilities.formatString("%04d", parseInt(rawId, 10));
 
-    lock = acquireLock('対戦結果の修正');
+    lock = acquireLock("対戦結果の修正");
 
     // 2. 対戦履歴から該当の対戦を検索
     const historySheet = ss.getSheetByName(SHEET_HISTORY);
@@ -652,7 +632,7 @@ function correctMatchResult() {
     }
 
     if (matchRow === -1) {
-      ui.alert('エラー', `対戦ID ${matchId} が見つかりません。`, ui.ButtonSet.OK);
+      ui.alert("エラー", `対戦ID ${matchId} が見つかりません。`, ui.ButtonSet.OK);
       return;
     }
 
@@ -665,59 +645,55 @@ function correctMatchResult() {
 
     // Byeの対戦は修正不可
     if (currentResult === "Bye" || !player2Id) {
-      ui.alert('エラー', 'Byeの対戦結果は修正できません。', ui.ButtonSet.OK);
+      ui.alert("エラー", "Byeの対戦結果は修正できません。", ui.ButtonSet.OK);
       return;
     }
 
     // 3. 現在の結果タイプを判定
-    const isDraw = (currentResult === "両負け");
+    const isDraw = currentResult === "両負け";
 
     // 4. 修正タイプを選択
     let correctionType;
     if (isDraw) {
       // 引き分けの場合：勝敗に変更のみ
       const typeResponse = ui.alert(
-        '修正タイプの選択',
-        `対戦ID: ${matchId}\n\n` +
-        `【現在の結果】\n` +
-        `${player1Name} vs ${player2Name}\n` +
-        `結果: 引き分け（両負け）\n\n` +
-        '勝敗に変更しますか？',
+        "修正タイプの選択",
+        `対戦ID: ${matchId}\n\n` + `【現在の結果】\n` + `${player1Name} vs ${player2Name}\n` + `結果: 引き分け（両負け）\n\n` + "勝敗に変更しますか？",
         ui.ButtonSet.YES_NO
       );
 
       if (typeResponse !== ui.Button.YES) {
-        ui.alert('処理をキャンセルしました。');
+        ui.alert("処理をキャンセルしました。");
         return;
       }
-      correctionType = 'draw_to_win';
+      correctionType = "draw_to_win";
     } else {
       // 勝敗の場合：入れ替えまたは引き分けに変更
       const typeResponse = ui.prompt(
-        '修正タイプの選択',
+        "修正タイプの選択",
         `対戦ID: ${matchId}\n\n` +
-        `【現在の結果】\n` +
-        `勝者: ${currentWinnerName}\n` +
-        `${player1Name} vs ${player2Name}\n\n` +
-        `修正タイプを選択してください：\n` +
-        `1: 勝敗を入れ替える\n` +
-        `2: 引き分けに変更する\n\n` +
-        `数字を入力してください：`,
+          `【現在の結果】\n` +
+          `勝者: ${currentWinnerName}\n` +
+          `${player1Name} vs ${player2Name}\n\n` +
+          `修正タイプを選択してください：\n` +
+          `1: 勝敗を入れ替える\n` +
+          `2: 引き分けに変更する\n\n` +
+          `数字を入力してください：`,
         ui.ButtonSet.OK_CANCEL
       );
 
       if (typeResponse.getSelectedButton() !== ui.Button.OK) {
-        ui.alert('処理をキャンセルしました。');
+        ui.alert("処理をキャンセルしました。");
         return;
       }
 
       const typeInput = typeResponse.getResponseText().trim();
-      if (typeInput === '1') {
-        correctionType = 'swap_win_loss';
-      } else if (typeInput === '2') {
-        correctionType = 'win_to_draw';
+      if (typeInput === "1") {
+        correctionType = "swap_win_loss";
+      } else if (typeInput === "2") {
+        correctionType = "win_to_draw";
       } else {
-        ui.alert('エラー', '1 または 2 を入力してください。', ui.ButtonSet.OK);
+        ui.alert("エラー", "1 または 2 を入力してください。", ui.ButtonSet.OK);
         return;
       }
     }
@@ -726,29 +702,29 @@ function correctMatchResult() {
     const playerSheet = ss.getSheetByName(SHEET_PLAYERS);
     const { indices: playerIndices, data: playerData } = getSheetStructure(playerSheet, SHEET_PLAYERS);
 
-    if (correctionType === 'swap_win_loss') {
+    if (correctionType === "swap_win_loss") {
       // 勝敗の入れ替え
-      const currentWinnerId = (currentWinnerName === player1Name) ? player1Id : player2Id;
-      const currentLoserId = (currentWinnerId === player1Id) ? player2Id : player1Id;
+      const currentWinnerId = currentWinnerName === player1Name ? player1Id : player2Id;
+      const currentLoserId = currentWinnerId === player1Id ? player2Id : player1Id;
       const newWinnerId = currentLoserId;
-      const newWinnerName = (newWinnerId === player1Id) ? player1Name : player2Name;
+      const newWinnerName = newWinnerId === player1Id ? player1Name : player2Name;
       const newLoserId = currentWinnerId;
-      const newLoserName = (newLoserId === player1Id) ? player1Name : player2Name;
+      const newLoserName = newLoserId === player1Id ? player1Name : player2Name;
 
       const confirmResponse = ui.alert(
-        '勝敗入れ替えの確認',
+        "勝敗入れ替えの確認",
         `【現在】\n` +
-        `勝者: ${currentWinnerName}\n` +
-        `敗者: ${(currentWinnerId === player1Id) ? player2Name : player1Name}\n\n` +
-        `【修正後】\n` +
-        `勝者: ${newWinnerName}\n` +
-        `敗者: ${newLoserName}\n\n` +
-        'この内容で修正しますか？',
+          `勝者: ${currentWinnerName}\n` +
+          `敗者: ${currentWinnerId === player1Id ? player2Name : player1Name}\n\n` +
+          `【修正後】\n` +
+          `勝者: ${newWinnerName}\n` +
+          `敗者: ${newLoserName}\n\n` +
+          "この内容で修正しますか？",
         ui.ButtonSet.YES_NO
       );
 
       if (confirmResponse !== ui.Button.YES) {
-        ui.alert('処理をキャンセルしました。');
+        ui.alert("処理をキャンセルしました。");
         return;
       }
 
@@ -765,31 +741,30 @@ function correctMatchResult() {
       updatePlayerStatsForCorrection(playerSheet, playerIndices, playerData, currentLoserId, 1, -1, SWISS_CONFIG.POINTS_WIN);
 
       Logger.log(`対戦結果修正完了（勝敗入れ替え）: ${matchId}, 新勝者: ${newWinnerId}`);
-
-    } else if (correctionType === 'win_to_draw') {
+    } else if (correctionType === "win_to_draw") {
       // 勝敗から引き分けへ
-      const currentWinnerId = (currentWinnerName === player1Name) ? player1Id : player2Id;
-      const currentLoserId = (currentWinnerId === player1Id) ? player2Id : player1Id;
+      const currentWinnerId = currentWinnerName === player1Name ? player1Id : player2Id;
+      const currentLoserId = currentWinnerId === player1Id ? player2Id : player1Id;
 
       const confirmResponse = ui.alert(
-        '引き分けへの変更確認',
+        "引き分けへの変更確認",
         `【現在】\n` +
-        `勝者: ${currentWinnerName}\n` +
-        `敗者: ${(currentWinnerId === player1Id) ? player2Name : player1Name}\n\n` +
-        `【修正後】\n` +
-        `引き分け（両負け、両者0勝点）\n\n` +
-        'この内容で修正しますか？',
+          `勝者: ${currentWinnerName}\n` +
+          `敗者: ${currentWinnerId === player1Id ? player2Name : player1Name}\n\n` +
+          `【修正後】\n` +
+          `引き分け（両負け、両者0勝点）\n\n` +
+          "この内容で修正しますか？",
         ui.ButtonSet.YES_NO
       );
 
       if (confirmResponse !== ui.Button.YES) {
-        ui.alert('処理をキャンセルしました。');
+        ui.alert("処理をキャンセルしました。");
         return;
       }
 
       // 履歴シートを更新（ID順は維持、勝者名を空に、結果を「両負け」に）
-      historySheet.getRange(matchRow, historyIndices["勝者名"] + 1).setValue('');
-      historySheet.getRange(matchRow, historyIndices["結果"] + 1).setValue('両負け');
+      historySheet.getRange(matchRow, historyIndices["勝者名"] + 1).setValue("");
+      historySheet.getRange(matchRow, historyIndices["結果"] + 1).setValue("両負け");
 
       // プレイヤー統計を更新
       // 勝者: 勝数-1、敗数+1、勝点-3
@@ -797,54 +772,50 @@ function correctMatchResult() {
       // 敗者: 敗数は変わらず（既に敗北扱い）、勝点変化なし
 
       Logger.log(`対戦結果修正完了（勝敗→引き分け）: ${matchId}`);
-
-    } else if (correctionType === 'draw_to_win') {
+    } else if (correctionType === "draw_to_win") {
       // 引き分けから勝敗へ
       const winnerResponse = ui.prompt(
-        '勝者の選択',
-        `勝者を選択してください：\n\n` +
-        `1: ${player1Name} (${player1Id})\n` +
-        `2: ${player2Name} (${player2Id})\n\n` +
-        `数字を入力してください：`,
+        "勝者の選択",
+        `勝者を選択してください：\n\n` + `1: ${player1Name} (${player1Id})\n` + `2: ${player2Name} (${player2Id})\n\n` + `数字を入力してください：`,
         ui.ButtonSet.OK_CANCEL
       );
 
       if (winnerResponse.getSelectedButton() !== ui.Button.OK) {
-        ui.alert('処理をキャンセルしました。');
+        ui.alert("処理をキャンセルしました。");
         return;
       }
 
       const winnerInput = winnerResponse.getResponseText().trim();
       let newWinnerId, newWinnerName, newLoserId, newLoserName;
 
-      if (winnerInput === '1') {
+      if (winnerInput === "1") {
         newWinnerId = player1Id;
         newWinnerName = player1Name;
         newLoserId = player2Id;
         newLoserName = player2Name;
-      } else if (winnerInput === '2') {
+      } else if (winnerInput === "2") {
         newWinnerId = player2Id;
         newWinnerName = player2Name;
         newLoserId = player1Id;
         newLoserName = player1Name;
       } else {
-        ui.alert('エラー', '1 または 2 を入力してください。', ui.ButtonSet.OK);
+        ui.alert("エラー", "1 または 2 を入力してください。", ui.ButtonSet.OK);
         return;
       }
 
       const confirmResponse = ui.alert(
-        '勝敗への変更確認',
+        "勝敗への変更確認",
         `【現在】\n` +
-        `引き分け（両負け）\n\n` +
-        `【修正後】\n` +
-        `勝者: ${newWinnerName} (3勝点)\n` +
-        `敗者: ${newLoserName} (0勝点)\n\n` +
-        'この内容で修正しますか？',
+          `引き分け（両負け）\n\n` +
+          `【修正後】\n` +
+          `勝者: ${newWinnerName} (3勝点)\n` +
+          `敗者: ${newLoserName} (0勝点)\n\n` +
+          "この内容で修正しますか？",
         ui.ButtonSet.YES_NO
       );
 
       if (confirmResponse !== ui.Button.YES) {
-        ui.alert('処理をキャンセルしました。');
+        ui.alert("処理をキャンセルしました。");
         return;
       }
 
@@ -864,8 +835,7 @@ function correctMatchResult() {
       Logger.log(`対戦結果修正完了（引き分け→勝敗）: ${matchId}, 勝者: ${newWinnerId}`);
     }
 
-    ui.alert('修正完了', '対戦結果の修正が完了しました。', ui.ButtonSet.OK);
-
+    ui.alert("修正完了", "対戦結果の修正が完了しました。", ui.ButtonSet.OK);
   } catch (e) {
     ui.alert("エラーが発生しました: " + e.toString());
     Logger.log("correctMatchResult エラー: " + e.toString());

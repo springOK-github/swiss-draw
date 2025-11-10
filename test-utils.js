@@ -6,7 +6,7 @@
 
 // テスト設定
 const TEST_CONFIG = {
-  NUM_PLAYERS: 5  // 登録するテストプレイヤー数（この値を変更して調整）
+  NUM_PLAYERS: 5, // 登録するテストプレイヤー数（この値を変更して調整）
 };
 
 /**
@@ -20,7 +20,7 @@ function registerTestPlayers() {
   let lock = null;
 
   try {
-    lock = acquireLock('テストプレイヤー登録');
+    lock = acquireLock("テストプレイヤー登録");
     const { indices, data } = getSheetStructure(playerSheet, SHEET_PLAYERS);
 
     // 既存の最大ID番号を取得（本物のregisterPlayer()と同じロジック）
@@ -41,9 +41,9 @@ function registerTestPlayers() {
     for (let i = 0; i < numPlayers; i++) {
       const newIdNumber = maxIdNumber + i + 1;
       const newId = PLAYER_ID_PREFIX + Utilities.formatString(`%0${ID_DIGITS}d`, newIdNumber);
-      const playerName = newId;  // 名前はIDと同じ
+      const playerName = newId; // 名前はIDと同じ
       const currentTime = new Date();
-      const formattedTime = Utilities.formatDate(currentTime, 'Asia/Tokyo', 'yyyy/MM/dd HH:mm:ss');
+      const formattedTime = Utilities.formatDate(currentTime, "Asia/Tokyo", "yyyy/MM/dd HH:mm:ss");
 
       // スイス方式用: 勝点, 勝数, 敗数, 試合数, OMW%, 参加状況, 最終対戦日時
       playerSheet.appendRow([newId, playerName, 0, 0, 0, 0, 0, PLAYER_STATUS.ACTIVE, formattedTime]);
@@ -51,8 +51,7 @@ function registerTestPlayers() {
     }
 
     Logger.log(`テストプレイヤー登録完了。${numPlayers} 人を登録しました。`);
-    Logger.log('「新ラウンド開始」メニューからトーナメントを開始してください。');
-
+    Logger.log("「新ラウンド開始」メニューからトーナメントを開始してください。");
   } catch (e) {
     Logger.log("registerTestPlayers エラー: " + e.toString());
   } finally {

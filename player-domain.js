@@ -22,16 +22,11 @@ function registerPlayer() {
     // トーナメント開始後は追加不可
     const currentRound = getCurrentRound();
     if (currentRound > 0) {
-      ui.alert(
-        'プレイヤー追加不可',
-        `トーナメント開始後は新しいプレイヤーを追加できません。\n\n` +
-        `現在のラウンド: ${currentRound}`,
-        ui.ButtonSet.OK
-      );
+      ui.alert("プレイヤー追加不可", `トーナメント開始後は新しいプレイヤーを追加できません。\n\n` + `現在のラウンド: ${currentRound}`, ui.ButtonSet.OK);
       return;
     }
 
-    lock = acquireLock('プレイヤー登録');
+    lock = acquireLock("プレイヤー登録");
     getSheetStructure(playerSheet, SHEET_PLAYERS);
 
     // 既存プレイヤー数を取得
@@ -44,24 +39,24 @@ function registerPlayer() {
 
     if (currentPlayerCount >= maxPlayers) {
       ui.alert(
-        'プレイヤー登録不可',
+        "プレイヤー登録不可",
         `プレイヤー数が上限に達しています。\n\n` +
-        `現在のプレイヤー数: ${currentPlayerCount}人\n` +
-        `最大プレイヤー数: ${maxPlayers}人（最大卓数 ${maxTables}卓 × 2）\n\n` +
-        `プレイヤーを追加するには、先に「⚙️ 最大卓数の設定」で卓数を増やしてください。`,
+          `現在のプレイヤー数: ${currentPlayerCount}人\n` +
+          `最大プレイヤー数: ${maxPlayers}人（最大卓数 ${maxTables}卓 × 2）\n\n` +
+          `プレイヤーを追加するには、先に「⚙️ 最大卓数の設定」で卓数を増やしてください。`,
         ui.ButtonSet.OK
       );
       return;
     }
 
     const response = ui.prompt(
-      'プレイヤー登録',
-      `プレイヤー名を入力してください：\n\n` +
-      `現在: ${currentPlayerCount}/${maxPlayers}人`,
-      ui.ButtonSet.OK_CANCEL);
+      "プレイヤー登録",
+      `プレイヤー名を入力してください：\n\n` + `現在: ${currentPlayerCount}/${maxPlayers}人`,
+      ui.ButtonSet.OK_CANCEL
+    );
 
     if (response.getSelectedButton() == ui.Button.CANCEL) {
-      Logger.log('プレイヤー登録がキャンセルされました。');
+      Logger.log("プレイヤー登録がキャンセルされました。");
       return;
     }
 
@@ -88,28 +83,23 @@ function registerPlayer() {
     }
 
     // 名前確認ダイアログ
-    const confirmResponse = ui.alert(
-      '登録確認',
-      `プレイヤー名: ${playerName}\nプレイヤーID: ${newId}\n\nこの内容で登録しますか？`,
-      ui.ButtonSet.YES_NO);
+    const confirmResponse = ui.alert("登録確認", `プレイヤー名: ${playerName}\nプレイヤーID: ${newId}\n\nこの内容で登録しますか？`, ui.ButtonSet.YES_NO);
 
     if (confirmResponse == ui.Button.NO) {
-      Logger.log('プレイヤー登録が確認段階でキャンセルされました。');
+      Logger.log("プレイヤー登録が確認段階でキャンセルされました。");
       return;
     }
 
     const currentTime = new Date();
-    const formattedTime = Utilities.formatDate(currentTime, 'Asia/Tokyo', 'yyyy/MM/dd HH:mm:ss');
+    const formattedTime = Utilities.formatDate(currentTime, "Asia/Tokyo", "yyyy/MM/dd HH:mm:ss");
 
     // スイス方式用: 勝点, 勝数, 敗数, 試合数, OMW%, 参加状況, 最終対戦日時
     playerSheet.appendRow([newId, playerName, 0, 0, 0, 0, 0, PLAYER_STATUS.ACTIVE, ""]);
     Logger.log(`プレイヤー ${newId} を登録しました。`);
-
   } catch (e) {
     ui.alert("エラーが発生しました: " + e.toString());
     Logger.log("registerPlayer エラー: " + e.toString());
-  }
-  finally {
+  } finally {
     releaseLock(lock);
   }
 }
@@ -124,18 +114,11 @@ function dropoutPlayer() {
   // トーナメントが終了しているかチェック
   const tournamentStatus = getTournamentStatus();
   if (tournamentStatus === TOURNAMENT_STATUS.FINISHED) {
-    ui.alert(
-      'トーナメント終了済み',
-      'このトーナメントは既に終了しています。\nプレイヤーのステータス変更はできません。',
-      ui.ButtonSet.OK
-    );
+    ui.alert("トーナメント終了済み", "このトーナメントは既に終了しています。\nプレイヤーのステータス変更はできません。", ui.ButtonSet.OK);
     return;
   }
 
-  const playerId = promptPlayerId(
-    'プレイヤーのドロップアウト',
-    'ドロップアウトするプレイヤーIDの**数字部分のみ**を入力してください (例: P001なら「1」)。'
-  );
+  const playerId = promptPlayerId("プレイヤーのドロップアウト", "ドロップアウトするプレイヤーIDの**数字部分のみ**を入力してください (例: P001なら「1」)。");
   if (!playerId) return;
 
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -143,7 +126,7 @@ function dropoutPlayer() {
   let lock = null;
 
   try {
-    lock = acquireLock('プレイヤードロップアウト');
+    lock = acquireLock("プレイヤードロップアウト");
     const { indices, data } = getSheetStructure(playerSheet, SHEET_PLAYERS);
 
     let found = false;
@@ -161,24 +144,23 @@ function dropoutPlayer() {
     }
 
     if (!found) {
-      ui.alert('エラー', `プレイヤー ${playerId} が見つかりません。`, ui.ButtonSet.OK);
+      ui.alert("エラー", `プレイヤー ${playerId} が見つかりません。`, ui.ButtonSet.OK);
       return;
     }
 
     const confirmResponse = ui.alert(
-      'ドロップアウトの確認',
+      "ドロップアウトの確認",
       `プレイヤー名: ${playerName}\nプレイヤーID: ${playerId}\n\nドロップアウトさせます。\n\nよろしいですか？`,
       ui.ButtonSet.YES_NO
     );
 
     if (confirmResponse !== ui.Button.YES) {
-      ui.alert('処理をキャンセルしました。');
+      ui.alert("処理をキャンセルしました。");
       return;
     }
 
     playerSheet.getRange(targetRowIndex, indices["参加状況"] + 1).setValue(PLAYER_STATUS.DROPPED);
     Logger.log(`プレイヤー ${playerId} をドロップアウトさせました。`);
-
   } catch (e) {
     ui.alert("エラーが発生しました: " + e.toString());
     Logger.log("dropoutPlayer エラー: " + e.toString());
@@ -257,7 +239,6 @@ function calculateOpponentWinRate(playerId) {
     }
 
     return totalWinRate / opponentCount;
-
   } catch (e) {
     Logger.log("calculateOpponentWinRate エラー: " + e.message);
     return 0.333;
@@ -331,8 +312,8 @@ function showStandings() {
     // 参加中のプレイヤーのみ抽出
     const activePlayers = data
       .slice(1)
-      .filter(row => row[indices["参加状況"]] === PLAYER_STATUS.ACTIVE)
-      .map(row => {
+      .filter((row) => row[indices["参加状況"]] === PLAYER_STATUS.ACTIVE)
+      .map((row) => {
         const playerId = row[indices["プレイヤーID"]];
         const matches = parseInt(row[indices["試合数"]]) || 0;
         const wins = parseInt(row[indices["勝数"]]) || 0;
@@ -342,7 +323,7 @@ function showStandings() {
           row: row,
           playerId: playerId,
           matchWinRate: matches > 0 ? wins / matches : 0,
-          opponentWinRate: opponentWinRate
+          opponentWinRate: opponentWinRate,
         };
       })
       .sort((a, b) => {
@@ -363,13 +344,13 @@ function showStandings() {
       });
 
     if (activePlayers.length === 0) {
-      ui.alert('順位表', '参加中のプレイヤーがいません。', ui.ButtonSet.OK);
+      ui.alert("順位表", "参加中のプレイヤーがいません。", ui.ButtonSet.OK);
       return;
     }
 
-    let message = '【順位表】\n\n';
-    message += '順位 | 名前 | 勝点 | 勝-敗 | OMW% | 試合数\n';
-    message += '─'.repeat(50) + '\n';
+    let message = "【順位表】\n\n";
+    message += "順位 | 名前 | 勝点 | 勝-敗 | OMW% | 試合数\n";
+    message += "─".repeat(50) + "\n";
 
     for (let i = 0; i < Math.min(activePlayers.length, 20); i++) {
       const player = activePlayers[i];
@@ -388,8 +369,7 @@ function showStandings() {
       message += `\n...他 ${activePlayers.length - 20} 人`;
     }
 
-    ui.alert('順位表', message, ui.ButtonSet.OK);
-
+    ui.alert("順位表", message, ui.ButtonSet.OK);
   } catch (e) {
     ui.alert("エラーが発生しました: " + e.toString());
     Logger.log("showStandings エラー: " + e.toString());
